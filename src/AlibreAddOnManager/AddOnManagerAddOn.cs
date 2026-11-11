@@ -16,8 +16,8 @@ namespace AlibreAddOnManager
         public const string Title = "Alibre Add-On Manager";
 
         private const int MenuIdRoot = 7301;
-        private const int MenuIdManage = 7302;
-        private static readonly int[] SubMenuIds = { MenuIdManage };
+      
+       
 
         private readonly IADRoot _root;
         private readonly IntPtr _parentWindow;
@@ -30,19 +30,15 @@ namespace AlibreAddOnManager
 
         public int RootMenuItem => MenuIdRoot;
 
-        public bool HasSubMenus(int menuId) => menuId == MenuIdRoot;
-
-        public Array SubMenuItems(int menuId) => menuId == MenuIdRoot ? SubMenuIds : new int[0];
-
-        public string MenuItemText(int menuId)
+        public bool HasSubMenus(int menuId)
         {
-            switch (menuId)
-            {
-                case MenuIdRoot: return "Add-On Manager";
-                case MenuIdManage: return "Manage Add-Ons";
-                default: return string.Empty;
-            }
+            return menuId == MenuIdRoot;
         }
+
+        public Array SubMenuItems(int menuId) => null;
+
+
+        public string MenuItemText(int menuId)=> menuId == MenuIdRoot ? Title : string.Empty;
 
         public bool PopupMenu(int menuId) => menuId == MenuIdRoot;
 
@@ -52,7 +48,7 @@ namespace AlibreAddOnManager
 
         public string MenuItemToolTip(int menuId)
         {
-            return menuId == MenuIdManage ? "Install, update, disable and remove Alibre Design add-ons" : string.Empty;
+            return "Install, update, disable and remove Alibre Design add-ons";
         }
 
         /// <summary>Icon file name, looked up in the folder holding the .adc.</summary>
@@ -62,7 +58,7 @@ namespace AlibreAddOnManager
 
         public IAlibreAddOnCommand InvokeCommand(int menuId, string sessionIdentifier)
         {
-            if (menuId != MenuIdManage) return null;
+            if (menuId != MenuIdRoot) return null;
             try
             {
                 string version = null;
