@@ -30,6 +30,12 @@ namespace AlibreAddOnManager.Ui
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ManagerForm));
+            this.menuStrip = new System.Windows.Forms.MenuStrip();
+            this.menuFile = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuFileExit = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuHelpLicense = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuHelpAbout = new System.Windows.Forms.ToolStripMenuItem();
             this.tabControl = new System.Windows.Forms.TabControl();
             this.tabInstalled = new System.Windows.Forms.TabPage();
             this.listInstalled = new System.Windows.Forms.ListView();
@@ -71,6 +77,7 @@ namespace AlibreAddOnManager.Ui
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.openPackageDialog = new System.Windows.Forms.OpenFileDialog();
+            this.menuStrip.SuspendLayout();
             this.tabControl.SuspendLayout();
             this.tabInstalled.SuspendLayout();
             this.panelInstalledButtons.SuspendLayout();
@@ -86,16 +93,61 @@ namespace AlibreAddOnManager.Ui
             this.statusStrip.SuspendLayout();
             this.SuspendLayout();
             // 
+            // menuStrip
+            // 
+            this.menuStrip.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.menuFile, this.menuHelp });
+            this.menuStrip.Location = new System.Drawing.Point(0, 0);
+            this.menuStrip.Name = "menuStrip";
+            this.menuStrip.Size = new System.Drawing.Size(1259, 28);
+            this.menuStrip.TabIndex = 3;
+            // 
+            // menuFile
+            // 
+            this.menuFile.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { this.menuFileExit });
+            this.menuFile.Name = "menuFile";
+            this.menuFile.Size = new System.Drawing.Size(46, 24);
+            this.menuFile.Text = "&File";
+            // 
+            // menuFileExit
+            // 
+            this.menuFileExit.Name = "menuFileExit";
+            this.menuFileExit.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Alt | System.Windows.Forms.Keys.F4)));
+            this.menuFileExit.Size = new System.Drawing.Size(150, 26);
+            this.menuFileExit.Text = "E&xit";
+            this.menuFileExit.Click += new System.EventHandler(this.menuFileExit_Click);
+            // 
+            // menuHelp
+            // 
+            this.menuHelp.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { this.menuHelpLicense, this.menuHelpAbout });
+            this.menuHelp.Name = "menuHelp";
+            this.menuHelp.Size = new System.Drawing.Size(55, 24);
+            this.menuHelp.Text = "&Help";
+            // 
+            // menuHelpLicense
+            // 
+            this.menuHelpLicense.Name = "menuHelpLicense";
+            this.menuHelpLicense.Size = new System.Drawing.Size(224, 26);
+            this.menuHelpLicense.Text = "&License...";
+            this.menuHelpLicense.Click += new System.EventHandler(this.menuHelpLicense_Click);
+            // 
+            // menuHelpAbout
+            // 
+            this.menuHelpAbout.Name = "menuHelpAbout";
+            this.menuHelpAbout.Size = new System.Drawing.Size(224, 26);
+            this.menuHelpAbout.Text = "&About...";
+            this.menuHelpAbout.Click += new System.EventHandler(this.menuHelpAbout_Click);
+            // 
             // tabControl
             // 
             this.tabControl.Controls.Add(this.tabInstalled);
             this.tabControl.Controls.Add(this.tabAvailable);
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tabControl.Location = new System.Drawing.Point(0, 0);
+            this.tabControl.Location = new System.Drawing.Point(0, 28);
             this.tabControl.Margin = new System.Windows.Forms.Padding(4);
             this.tabControl.Name = "tabControl";
             this.tabControl.SelectedIndex = 0;
-            this.tabControl.Size = new System.Drawing.Size(1259, 548);
+            this.tabControl.Size = new System.Drawing.Size(1259, 520);
             this.tabControl.TabIndex = 0;
             // 
             // tabInstalled
@@ -432,7 +484,7 @@ namespace AlibreAddOnManager.Ui
             this.groupPending.Controls.Add(this.listPending);
             this.groupPending.Controls.Add(this.panelPendingButtons);
             this.groupPending.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.groupPending.Location = new System.Drawing.Point(0, 548);
+            this.groupPending.Location = new System.Drawing.Point(0, 576);
             this.groupPending.Margin = new System.Windows.Forms.Padding(4);
             this.groupPending.Name = "groupPending";
             this.groupPending.Padding = new System.Windows.Forms.Padding(4);
@@ -505,7 +557,7 @@ namespace AlibreAddOnManager.Ui
             // statusStrip
             // 
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.statusLabel });
-            this.statusStrip.Location = new System.Drawing.Point(0, 708);
+            this.statusStrip.Location = new System.Drawing.Point(0, 736);
             this.statusStrip.Name = "statusStrip";
             this.statusStrip.Padding = new System.Windows.Forms.Padding(1, 0, 19, 0);
             this.statusStrip.Size = new System.Drawing.Size(1259, 22);
@@ -527,10 +579,12 @@ namespace AlibreAddOnManager.Ui
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1259, 730);
+            this.ClientSize = new System.Drawing.Size(1259, 758);
             this.Controls.Add(this.tabControl);
             this.Controls.Add(this.groupPending);
             this.Controls.Add(this.statusStrip);
+            this.Controls.Add(this.menuStrip);
+            this.MainMenuStrip = this.menuStrip;
             this.Margin = new System.Windows.Forms.Padding(4);
             this.MinimumSize = new System.Drawing.Size(927, 543);
             this.Name = "ManagerForm";
@@ -539,6 +593,8 @@ namespace AlibreAddOnManager.Ui
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Alibre Add-On Manager";
             this.Load += new System.EventHandler(this.ManagerForm_Load);
+            this.menuStrip.ResumeLayout(false);
+            this.menuStrip.PerformLayout();
             this.tabControl.ResumeLayout(false);
             this.tabInstalled.ResumeLayout(false);
             this.tabInstalled.PerformLayout();
@@ -567,6 +623,12 @@ namespace AlibreAddOnManager.Ui
 
         #endregion
 
+        private System.Windows.Forms.MenuStrip menuStrip;
+        private System.Windows.Forms.ToolStripMenuItem menuFile;
+        private System.Windows.Forms.ToolStripMenuItem menuFileExit;
+        private System.Windows.Forms.ToolStripMenuItem menuHelp;
+        private System.Windows.Forms.ToolStripMenuItem menuHelpLicense;
+        private System.Windows.Forms.ToolStripMenuItem menuHelpAbout;
         private System.Windows.Forms.TabControl tabControl;
         private System.Windows.Forms.TabPage tabInstalled;
         private System.Windows.Forms.ListView listInstalled;

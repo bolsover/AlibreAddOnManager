@@ -91,6 +91,18 @@
         <Compile Include="CatalogClient.cs"/>
         <Compile Include="HelperLauncher.cs"/>
         <Compile Include="SettingsStore.cs"/>
+        <Compile Include="Ui\AboutForm.cs">
+            <SubType>Form</SubType>
+        </Compile>
+        <Compile Include="Ui\AboutForm.Designer.cs">
+            <DependentUpon>AboutForm.cs</DependentUpon>
+        </Compile>
+        <Compile Include="Ui\LicenseForm.cs">
+            <SubType>Form</SubType>
+        </Compile>
+        <Compile Include="Ui\LicenseForm.Designer.cs">
+            <DependentUpon>LicenseForm.cs</DependentUpon>
+        </Compile>
         <Compile Include="Ui\ManagerForm.cs">
             <SubType>Form</SubType>
         </Compile>
@@ -108,6 +120,11 @@
             <AutoGen>True</AutoGen>
             <DependentUpon>Resources.resx</DependentUpon>
         </Compile>
+        <!-- The repository's MIT LICENSE, shown by Help | License. -->
+        <EmbeddedResource Include="..\..\LICENSE">
+          <Link>LICENSE</Link>
+          <LogicalName>LICENSE</LogicalName>
+        </EmbeddedResource>
         <EmbeddedResource Include="Ui\ManagerForm.resx">
           <DependentUpon>ManagerForm.cs</DependentUpon>
         </EmbeddedResource>

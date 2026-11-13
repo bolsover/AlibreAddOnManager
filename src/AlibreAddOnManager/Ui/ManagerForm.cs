@@ -113,6 +113,27 @@ namespace AlibreAddOnManager.Ui
 
         #endregion
 
+        #region Menu
+
+        private void menuFileExit_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void menuHelpLicense_Click(object sender, EventArgs e)
+        {
+            using (var license = new LicenseForm())
+                license.ShowDialog(this);
+        }
+
+        private void menuHelpAbout_Click(object sender, EventArgs e)
+        {
+            using (var about = new AboutForm())
+                about.ShowDialog(this);
+        }
+
+        #endregion
+
         #region Installed tab
 
         private InstalledAddOn SelectedInstalled =>
