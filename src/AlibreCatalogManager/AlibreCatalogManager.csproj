@@ -13,7 +13,7 @@
         <Deterministic>true</Deterministic>
         <!-- AnyCPU runs as a 64-bit process on 64-bit Windows, so Program Files and the
              registry are the 64-bit views. -->
-        <PlatformTarget>AnyCPU</PlatformTarget>
+        <PlatformTarget>x64</PlatformTarget>
         <!-- Keep the output in bin\<Configuration>\, as before the move to .NET 10. -->
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
@@ -22,6 +22,10 @@
         <Description>Authoring tool for the Alibre add-on catalog.</Description>
         <Copyright>Copyright © 2026</Copyright>
         <ApplicationIcon>AlibreAddOnManager.ico</ApplicationIcon>
+        <UseWindowsForms>True</UseWindowsForms>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+      <Optimize>True</Optimize>
     </PropertyGroup>
     <ItemGroup>
         <!-- Templates for a new add-on, named Templates.<Folder>.<File>; %%Token%% placeholders are filled by AddOnGenerator. -->
@@ -43,6 +47,11 @@
       <!-- Only Shared: every project referenced here is listed in deps.json and must
            then ship in the installer (.build\AlibreCatalogManager.iss). -->
       <ProjectReference Include="..\AlibreAddOnManager.Shared\AlibreAddOnManager.Shared.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+      <Reference Include="AlibreX">
+        <HintPath>C:\Program Files\Alibre Design 29.1.1.29133\Program\AlibreX.dll</HintPath>
+      </Reference>
     </ItemGroup>
    
 </Project>

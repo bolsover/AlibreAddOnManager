@@ -19,6 +19,12 @@ namespace AlibreAddOnManager.Ui
     public partial class ManagerForm : Form
     {
         private static readonly string InstallPath = Path.GetDirectoryName(typeof(ManagerForm).Assembly.Location);
+
+        /// <summary>Catalog used when none has been chosen yet; always offered in the drop-down.</summary>
+        private const string DefaultCatalogUrl = "https://github.com/bolsover/bolsover.github.io/tree/main/AlibreAddOns/index.json";
+
+        /// <summary>How many previously loaded catalog locations are remembered.</summary>
+        private const int MaxRecentCatalogs = 10;
        
         private readonly string _alibreVersion;
         private readonly int _runningBuild;
@@ -32,7 +38,7 @@ namespace AlibreAddOnManager.Ui
         private CatalogClient _catalog;
         private CatalogIndex _index;
 
-        public ManagerForm(string alibreVersion)
+        public ManagerForm(string alibreVersion, IntPtr alibreParentWindow = default)
         {
             InitializeComponent();
            
@@ -55,7 +61,8 @@ namespace AlibreAddOnManager.Ui
 
         private async void ManagerForm_Load(object sender, EventArgs e)
         {
-            txtCatalogUrl.Text = _settings.CatalogUrl ?? string.Empty;
+            RefreshCatalogHistory();
+            txtCatalogUrl.Text = string.IsNullOrWhiteSpace(_settings.CatalogUrl) ? DefaultCatalogUrl : _settings.CatalogUrl;
             RefreshInstalled();
             UpdatePendingButtons();
             SetStatus(DescribeEnvironment());
@@ -256,11 +263,7 @@ namespace AlibreAddOnManager.Ui
                 _index = index;
                 _manifests.Clear();
 
-                if (!string.Equals(_settings.CatalogUrl, location, StringComparison.Ordinal))
-                {
-                    _settings.CatalogUrl = location;
-                    SettingsStore.Save(_settings);
-                }
+                RememberCatalog(location);
 
                 listAvailable.BeginUpdate();
                 listAvailable.Items.Clear();
@@ -279,6 +282,52 @@ namespace AlibreAddOnManager.Ui
             {
                 SetBusy(false, null);
             }
+        }
+
+        /// <summary>Saves a successfully loaded location as current and most recent catalog.</summary>
+        private void RememberCatalog(string location)
+        {
+            var recent = _settings.RecentCatalogUrls ?? new List<string>();
+            var updated = new List<string> { location };
+            updated.AddRange(recent.Where(r => !string.IsNullOrWhiteSpace(r) &&
+                                               !string.Equals(r.Trim(), location, StringComparison.OrdinalIgnoreCase)));
+            if (updated.Count > MaxRecentCatalogs) updated.RemoveRange(MaxRecentCatalogs, updated.Count - MaxRecentCatalogs);
+
+            var changed = !string.Equals(_settings.CatalogUrl, location, StringComparison.Ordinal) ||
+                          !recent.SequenceEqual(updated, StringComparer.Ordinal);
+            if (!changed) return;
+
+            _settings.CatalogUrl = location;
+            _settings.RecentCatalogUrls = updated;
+            try
+            {
+                SettingsStore.Save(_settings);
+            }
+            catch (Exception)
+            {
+                // Settings are a convenience only; a failed save must not fail the catalog load.
+            }
+
+            RefreshCatalogHistory();
+        }
+
+        /// <summary>Fills the catalog drop-down: recent locations first, then the default catalog.</summary>
+        private void RefreshCatalogHistory()
+        {
+            var text = txtCatalogUrl.Text;
+            var entries = new List<string>();
+            foreach (var url in (_settings.RecentCatalogUrls ?? new List<string>()).Concat(new[] { DefaultCatalogUrl }))
+            {
+                if (string.IsNullOrWhiteSpace(url)) continue;
+                var trimmed = url.Trim();
+                if (!entries.Contains(trimmed, StringComparer.OrdinalIgnoreCase)) entries.Add(trimmed);
+            }
+
+            txtCatalogUrl.BeginUpdate();
+            txtCatalogUrl.Items.Clear();
+            foreach (var url in entries) txtCatalogUrl.Items.Add(url);
+            txtCatalogUrl.EndUpdate();
+            txtCatalogUrl.Text = text;
         }
 
         private void RefreshAvailableInstalledColumn()

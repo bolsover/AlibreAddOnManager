@@ -64,7 +64,7 @@ namespace AlibreAddOnManager.Ui
             this.txtAvailableDetails = new System.Windows.Forms.TextBox();
             this.panelCatalog = new System.Windows.Forms.TableLayoutPanel();
             this.lblCatalogUrl = new System.Windows.Forms.Label();
-            this.txtCatalogUrl = new System.Windows.Forms.TextBox();
+            this.txtCatalogUrl = new System.Windows.Forms.ComboBox();
             this.btnLoadCatalog = new System.Windows.Forms.Button();
             this.panelAvailableButtons = new System.Windows.Forms.FlowLayoutPanel();
             this.btnInstallSelected = new System.Windows.Forms.Button();
@@ -438,6 +438,8 @@ namespace AlibreAddOnManager.Ui
             // txtCatalogUrl
             // 
             this.txtCatalogUrl.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.txtCatalogUrl.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDown;
+            this.txtCatalogUrl.FormattingEnabled = true;
             this.txtCatalogUrl.Location = new System.Drawing.Point(69, 9);
             this.txtCatalogUrl.Margin = new System.Windows.Forms.Padding(4);
             this.txtCatalogUrl.Name = "txtCatalogUrl";
@@ -657,7 +659,7 @@ namespace AlibreAddOnManager.Ui
         private System.Windows.Forms.TextBox txtAvailableDetails;
         private System.Windows.Forms.TableLayoutPanel panelCatalog;
         private System.Windows.Forms.Label lblCatalogUrl;
-        private System.Windows.Forms.TextBox txtCatalogUrl;
+        private System.Windows.Forms.ComboBox txtCatalogUrl;
         private System.Windows.Forms.Button btnLoadCatalog;
         private System.Windows.Forms.FlowLayoutPanel panelAvailableButtons;
         private System.Windows.Forms.Button btnInstallSelected;

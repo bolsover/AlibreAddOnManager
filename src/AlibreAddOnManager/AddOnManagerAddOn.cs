@@ -13,11 +13,11 @@ namespace AlibreAddOnManager
     /// </summary>
     public class AddOnManagerAddOn : IAlibreAddOn
     {
-        public const string Title = "Alibre Add-On Manager";
+        public const string Title = "Manage Add-Ons";
 
         private const int MenuIdRoot = 7301;
       
-       
+        private readonly int _build;
 
         private readonly IADRoot _root;
         private readonly IntPtr _parentWindow;
@@ -26,6 +26,7 @@ namespace AlibreAddOnManager
         {
             _root = root;
             _parentWindow = parentWindow;
+            _build = AlibreVersion.GetBuild(root);
         }
 
         public int RootMenuItem => MenuIdRoot;
@@ -34,7 +35,7 @@ namespace AlibreAddOnManager
         {
             return menuId == MenuIdRoot;
         }
-
+        private bool IsSupportedVersion => _build >= AlibreVersion.MinimumBuild;
         public Array SubMenuItems(int menuId) => null;
 
 
@@ -58,23 +59,59 @@ namespace AlibreAddOnManager
 
         public IAlibreAddOnCommand InvokeCommand(int menuId, string sessionIdentifier)
         {
-            if (menuId != MenuIdRoot) return null;
+          
+            ShowWindow();
+
+            return null;
+        }
+
+        private ManagerForm? _form;
+        
+        public void ShowWindow()
+        {
             try
             {
                 string version = null;
                 try { version = _root?.Version; }
                 catch (Exception) { /* version is informational only */ }
+                
+                if (!IsSupportedVersion)
+                {
+                    MessageBox.Show(MenuItemToolTip(MenuIdRoot), Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
-                using (var form = new ManagerForm(version))
-                    form.ShowDialog(new WindowWrapper(_parentWindow));
+                if (_form != null && !_form.IsDisposed)
+                {
+                    if (_form.WindowState == FormWindowState.Minimized)
+                        _form.WindowState = FormWindowState.Normal;
+                    _form.Activate();
+                    return;
+                }
+
+                _form = new ManagerForm(version);
+                _form.FormClosed += (sender, args) =>  _form = null;
+              
+                if (_parentWindow != IntPtr.Zero)
+                {
+                    _form.Show(new WindowHandle(_parentWindow));
+                }
+                else
+                {
+                    _form.Show();
+                }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                MessageBox.Show(e.ToString(), Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.ToString(), Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
-            return null;
         }
+        
+        // private void onFormClosed(object sender, FormClosedEventArgs e)
+        // {
+        //     _form = null;
+        //     MenuItemState(menuId, sessionIdentifier) = ADDONMenuStates.ADDON_MENU_ENABLED
+        // }
 
         public void LoadData(IStream pCustomData, string sessionIdentifier)
         {
@@ -89,5 +126,10 @@ namespace AlibreAddOnManager
         }
 
         public bool UseDedicatedRibbonTab() => false;
+    }
+    internal sealed class WindowHandle : IWin32Window
+    {
+        public IntPtr Handle { get; }
+        public WindowHandle(IntPtr handle) => Handle = handle;
     }
 }
