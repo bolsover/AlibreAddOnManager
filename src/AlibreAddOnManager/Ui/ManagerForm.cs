@@ -26,7 +26,7 @@ namespace AlibreAddOnManager.Ui
         /// <summary>How many previously loaded catalog locations are remembered.</summary>
         private const int MaxRecentCatalogs = 10;
        
-        private readonly string _alibreVersion;
+        private readonly string? _alibreVersion;
         private readonly int _runningBuild;
         private readonly List<AlibreInstall> _installs;
         private readonly List<PendingChange> _pending = new List<PendingChange>();
@@ -35,8 +35,8 @@ namespace AlibreAddOnManager.Ui
 
         private ManagerState _state = new ManagerState();
         private List<InstalledAddOn> _installed = new List<InstalledAddOn>();
-        private CatalogClient _catalog;
-        private CatalogIndex _index;
+        private CatalogClient? _catalog;
+        private CatalogIndex? _index;
 
         public ManagerForm(string alibreVersion, IntPtr alibreParentWindow = default)
         {
@@ -50,7 +50,7 @@ namespace AlibreAddOnManager.Ui
 
         private sealed class PendingChange
         {
-            public PlanOperation Operation { get; set; }
+            public PlanOperation Operation { get; set; } = null!;
             public bool RequiresAlibreClosed { get; set; }
 
             public override string ToString() =>
@@ -143,7 +143,7 @@ namespace AlibreAddOnManager.Ui
 
         #region Installed tab
 
-        private InstalledAddOn SelectedInstalled =>
+        private InstalledAddOn? SelectedInstalled =>
             listInstalled.SelectedItems.Count == 1 ? listInstalled.SelectedItems[0].Tag as InstalledAddOn : null;
 
         private void listInstalled_SelectedIndexChanged(object sender, EventArgs e)
@@ -267,11 +267,16 @@ namespace AlibreAddOnManager.Ui
 
                 listAvailable.BeginUpdate();
                 listAvailable.Items.Clear();
-                foreach (var entry in index.AddOns.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
-                    listAvailable.Items.Add(new ListViewItem(new[] { entry.Name, entry.Publisher ?? "", entry.LatestVersion ?? "", "", entry.Summary ?? "" }) { Tag = entry });
+                var addOns = index.AddOns ?? new List<CatalogEntry>();
+                index.AddOns = addOns;
+                foreach (var entry in addOns.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
+                {
+                    if (entry == null) continue;
+                    listAvailable.Items.Add(new ListViewItem(new[] { entry.Name ?? string.Empty, entry.Publisher ?? "", entry.LatestVersion ?? "", "", entry.Summary ?? "" }) { Tag = entry });
+                }
                 listAvailable.EndUpdate();
                 RefreshAvailableInstalledColumn();
-                SetStatus($"Catalog loaded: {index.AddOns.Count} add-on(s). Catalog signature is not verified in this version; packages are checked against their SHA-256.");
+                SetStatus($"Catalog loaded: {addOns.Count} add-on(s). Catalog signature is not verified in this version; packages are checked against their SHA-256.");
             }
             catch (Exception e)
             {
@@ -334,13 +339,14 @@ namespace AlibreAddOnManager.Ui
         {
             foreach (ListViewItem item in listAvailable.Items)
             {
-                var entry = (CatalogEntry) item.Tag;
+                var entry = item.Tag as CatalogEntry;
+                if (entry == null) continue;
                 var installed = _installed.FirstOrDefault(a => ManagerPaths.SameId(a.Id, entry.Id));
                 item.SubItems[3].Text = installed == null ? "" : installed.Version ?? installed.StatusText;
             }
         }
 
-        private CatalogEntry SelectedEntry =>
+        private CatalogEntry? SelectedEntry =>
             listAvailable.SelectedItems.Count == 1 ? listAvailable.SelectedItems[0].Tag as CatalogEntry : null;
 
         private async void listAvailable_SelectedIndexChanged(object sender, EventArgs e)
@@ -365,9 +371,13 @@ namespace AlibreAddOnManager.Ui
 
         private async Task<AddOnManifest> GetManifestAsync(CatalogEntry entry)
         {
-            if (_manifests.TryGetValue(entry.Id, out var cached)) return cached;
-            var manifest = await _catalog.LoadManifestAsync(entry);
-            _manifests[entry.Id] = manifest;
+            var id = entry.Id;
+            if (id == null || string.IsNullOrWhiteSpace(id))
+                throw new InvalidDataException("Catalog entry has no add-on id.");
+            if (_manifests.TryGetValue(id, out var cached)) return cached;
+            var catalog = _catalog ?? throw new InvalidOperationException("Catalog has not been loaded.");
+            var manifest = await catalog.LoadManifestAsync(entry);
+            _manifests[id] = manifest;
             return manifest;
         }
 
@@ -383,7 +393,9 @@ namespace AlibreAddOnManager.Ui
 
             var chosen = CatalogClient.ChooseVersion(m, _runningBuild);
             text.AppendLine("Versions:");
-            foreach (var v in m.Versions.OrderByDescending(v => v.Version, Comparer<string>.Create(Packages.CompareVersions)))
+            foreach (var v in (m.Versions ?? new List<AddOnVersion>())
+                         .Where(v => v != null)
+                         .OrderByDescending(v => v.Version, Comparer<string?>.Create(Packages.CompareVersions)))
             {
                 text.Append(v == chosen ? " → " : "   ").Append(v.Version);
                 if (!string.IsNullOrWhiteSpace(v.Released)) text.Append("  (").Append(v.Released).Append(")");
@@ -400,7 +412,8 @@ namespace AlibreAddOnManager.Ui
         private async void btnInstallSelected_Click(object sender, EventArgs e)
         {
             var entry = SelectedEntry;
-            if (entry == null || _catalog == null) return;
+            var catalog = _catalog;
+            if (entry == null || catalog == null) return;
 
             SetBusy(true, "Fetching " + entry.Name + "…");
             try
@@ -414,14 +427,16 @@ namespace AlibreAddOnManager.Ui
                 }
 
                 SetStatus($"Downloading {manifest.Name} {version.Version}…");
-                var path = await _catalog.DownloadAsync(manifest, version);
+                var path = await catalog.DownloadAsync(manifest, version);
 
                 var notes = new List<string>();
                 if (version.Prerequisites != null && version.Prerequisites.Count > 0)
                     notes.Add("Requires: " + string.Join(", ", version.Prerequisites) + " (not installed automatically).");
 
                 SetBusy(false, null);
-                QueuePackage(path, _catalog.IndexUri.ToString(), manifest.Id, version.DllType, notes);
+                var catalogUrl = catalog.IndexUri?.ToString()
+                                 ?? throw new InvalidOperationException("Catalog index URI is unavailable.");
+                QueuePackage(path, catalogUrl, manifest.Id, version.DllType, notes);
             }
             catch (Exception ex)
             {
@@ -439,7 +454,7 @@ namespace AlibreAddOnManager.Ui
         #region Queueing
 
         /// <summary>Validates a package and, after any confirmations, queues an Install.</summary>
-        private void QueuePackage(string path, string source, string catalogId, string catalogDllType, List<string> notes)
+        private void QueuePackage(string path, string source, string? catalogId, string? catalogDllType, List<string>? notes)
         {
             PackageValidationResult validation;
             string hash;
@@ -462,8 +477,29 @@ namespace AlibreAddOnManager.Ui
             }
 
             var m = validation.Manifest;
-            var id = ManagerPaths.NormalizeId(m.Id);
-            var target = Path.Combine(ManagerPaths.AddOnsRoot, m.FolderName);
+            var manifestId = m?.Id;
+            var folderName = m?.FolderName;
+            if (m == null || manifestId == null || string.IsNullOrWhiteSpace(manifestId) ||
+                folderName == null || string.IsNullOrWhiteSpace(folderName))
+            {
+                MessageBox.Show(this, "The package has no usable manifest id or folder name.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var id = ManagerPaths.NormalizeId(manifestId);
+            if (id == null)
+            {
+                MessageBox.Show(this, "The package manifest id is not a valid GUID.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            var target = Path.Combine(ManagerPaths.AddOnsRoot, folderName);
+            var adc = validation.Adc;
+            var dll = validation.Dll;
+            if (adc == null || dll == null)
+            {
+                MessageBox.Show(this, "Package validation did not provide the required add-on metadata.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
             var warnings = new List<string>(validation.Warnings);
             if (notes != null) warnings.AddRange(notes);
 
@@ -494,7 +530,7 @@ namespace AlibreAddOnManager.Ui
 
             var question = new StringBuilder();
             question.Append("Install ").Append(m.Name).Append(' ').Append(m.Version);
-            question.Append(" (").Append(AdcFile.DllTypeName(validation.Adc.DllType)).Append(", ").Append(validation.Dll.MachineName).AppendLine(")");
+            question.Append(" (").Append(AdcFile.DllTypeName(adc.DllType)).Append(", ").Append(dll.MachineName).AppendLine(")");
             question.Append("into ").AppendLine(target);
 
             if (existing != null)
@@ -525,7 +561,7 @@ namespace AlibreAddOnManager.Ui
                 Kind = PlanOperationKind.Install,
                 Id = id,
                 Name = m.Name,
-                FolderName = m.FolderName,
+                FolderName = folderName,
                 PackagePath = path,
                 Sha256 = hash,
                 Version = m.Version,
@@ -592,7 +628,7 @@ namespace AlibreAddOnManager.Ui
             message.Append("Alibre Design must be restarted before it sees any change.");
             if (!Confirm(message.ToString())) return;
 
-            Process helper;
+            Process? helper;
             try
             {
                 helper = HelperLauncher.Launch(plan, out _);
@@ -639,7 +675,7 @@ namespace AlibreAddOnManager.Ui
 
         #region Helpers
 
-        private void SetBusy(bool busy, string status)
+        private void SetBusy(bool busy, string? status)
         {
             UseWaitCursor = busy;
             tabControl.Enabled = !busy;
@@ -649,7 +685,7 @@ namespace AlibreAddOnManager.Ui
 
         private void SetStatus(string text)
         {
-            statusLabel.Text = text ?? string.Empty;
+            statusLabel.Text = text;
         }
 
         private bool Confirm(string text)

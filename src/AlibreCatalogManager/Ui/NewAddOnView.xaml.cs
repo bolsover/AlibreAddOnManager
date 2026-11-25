@@ -35,7 +35,7 @@ namespace AlibreCatalogManager.Ui
 
         private Guid _guid = Guid.NewGuid();
         private Color _color = Color.FromRgb(30, 110, 180);
-        private string _solutionPath;
+        private string? _solutionPath;
 
         // The last values derived from the project name, so a user edit is never overwritten.
         private string _autoFriendlyName = string.Empty;
@@ -63,7 +63,7 @@ namespace AlibreCatalogManager.Ui
         }
 
         /// <summary>Raised with the new .csproj or .vcxproj after a project is generated.</summary>
-        public event Action<string> ProjectGenerated;
+        public event Action<string>? ProjectGenerated;
 
         private AddOnLanguage SelectedLanguage => Languages[Math.Max(0, LanguageBox.SelectedIndex)].Language;
 
@@ -216,7 +216,7 @@ namespace AlibreCatalogManager.Ui
                 return;
             }
 
-            SetColor(Color.FromRgb((byte) (rgb >> 16), (byte) (rgb >> 8), (byte) rgb));
+            SetColor(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));
         }
 
         private void SetColor(Color color)
@@ -252,7 +252,7 @@ namespace AlibreCatalogManager.Ui
                 AuthorName = AuthorBox.Text,
                 AuthorLink = AuthorLinkBox.Text,
                 Description = DescriptionBox.Text,
-                Workspace = (string) WorkspaceBox.SelectedItem,
+                Workspace = (string)WorkspaceBox.SelectedItem,
                 Version = VersionBox.Text.Trim(),
                 MinAlibreBuild = minBuild,
                 Id = _guid,

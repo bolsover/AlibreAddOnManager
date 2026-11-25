@@ -28,7 +28,7 @@ namespace AlibreAddOnManager.Ui
         {
             var attribute = (T)Attribute.GetCustomAttribute(assembly, typeof(T));
             var value = attribute == null ? null : selector(attribute);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return value == null || string.IsNullOrWhiteSpace(value) ? fallback : value;
         }
     }
 }

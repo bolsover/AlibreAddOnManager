@@ -10,7 +10,7 @@ namespace AlibreAddOnManager.Models
     public class InstallPlan
     {
         [DataMember(Name = "schemaVersion")] public int SchemaVersion { get; set; } = 1;
-        [DataMember(Name = "created")] public string Created { get; set; }
+        [DataMember(Name = "created")] public string? Created { get; set; }
 
         /// <summary>
         /// True when an operation replaces or deletes files of an add-on Alibre may
@@ -18,6 +18,6 @@ namespace AlibreAddOnManager.Models
         /// </summary>
         [DataMember(Name = "requiresAlibreClosed")] public bool RequiresAlibreClosed { get; set; }
 
-        [DataMember(Name = "operations")] public List<PlanOperation> Operations { get; set; } = new List<PlanOperation>();
+        [DataMember(Name = "operations")] public List<PlanOperation>? Operations { get; set; } = new List<PlanOperation>();
     }
 }

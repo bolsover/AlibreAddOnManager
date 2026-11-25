@@ -6,9 +6,9 @@ namespace AlibreAddOnManager.Models
     [DataContract]
     public class DisabledAddOn
     {
-        [DataMember(Name = "id")] public string Id { get; set; }
-        [DataMember(Name = "name", EmitDefaultValue = false)] public string Name { get; set; }
-        [DataMember(Name = "folder")] public string Folder { get; set; }
-        [DataMember(Name = "disabledUtc", EmitDefaultValue = false)] public string DisabledUtc { get; set; }
+        [DataMember(Name = "id")] public string? Id { get; set; }
+        [DataMember(Name = "name", EmitDefaultValue = false)] public string? Name { get; set; }
+        [DataMember(Name = "folder")] public string? Folder { get; set; }
+        [DataMember(Name = "disabledUtc", EmitDefaultValue = false)] public string? DisabledUtc { get; set; }
     }
 }

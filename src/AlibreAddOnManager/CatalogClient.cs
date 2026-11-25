@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -19,20 +20,21 @@ namespace AlibreAddOnManager
     {
         private static readonly HttpClient Http = CreateHttpClient();
 
-        public Uri IndexUri { get; private set; }
+        public Uri? IndexUri { get; private set; }
 
         public async Task<CatalogIndex> LoadIndexAsync(string location)
         {
-            IndexUri = ToUri(location);
-            var data = await ReadAsync(IndexUri).ConfigureAwait(false);
+            var indexUri = ToUri(location);
+            IndexUri = indexUri;
+            var data = await ReadAsync(indexUri).ConfigureAwait(false);
 
             if (IsHtmlOrXml(data))
             {
                 throw new InvalidDataException(
-                    $"The URL '{IndexUri}' returned an HTML page or XML markup instead of JSON catalog data. Ensure the URL points to a raw catalog or valid index.json.");
+                    $"The URL '{indexUri}' returned an HTML page or XML markup instead of JSON catalog data. Ensure the URL points to a raw catalog or valid index.json.");
             }
 
-            CatalogIndex index;
+            CatalogIndex? index;
             try
             {
                 index = Json.Parse<CatalogIndex>(data);
@@ -40,21 +42,30 @@ namespace AlibreAddOnManager
             catch (Exception ex)
             {
                 throw new InvalidDataException(
-                    $"Failed to parse catalog index from '{IndexUri}': {ex.Message}", ex);
+                    $"Failed to parse catalog index from '{indexUri}': {ex.Message}", ex);
             }
 
             if (index == null)
-                throw new InvalidDataException($"The catalog index at '{IndexUri}' was empty or invalid.");
+                throw new InvalidDataException($"The catalog index at '{indexUri}' was empty or invalid.");
             if (index.SchemaVersion != 1)
                 throw new InvalidDataException($"Unsupported catalog schemaVersion {index.SchemaVersion}.");
-            if (index.AddOns == null)
-                index.AddOns = new System.Collections.Generic.List<CatalogEntry>();
+            var addOns = index.AddOns ?? new List<CatalogEntry>();
+            foreach (var entry in addOns)
+            {
+                if (entry == null) throw new InvalidDataException("The catalog contains an empty add-on entry.");
+                var id = Required(entry.Id, "catalog add-on id");
+                if (!Guid.TryParse(id, out _)) throw new InvalidDataException($"Catalog add-on id '{id}' is not a GUID.");
+                Required(entry.Name, "catalog add-on name");
+                Required(entry.ManifestUrl, "catalog manifestUrl");
+            }
+            index.AddOns = addOns;
             return index;
         }
 
         public async Task<AddOnManifest> LoadManifestAsync(CatalogEntry entry)
         {
-            var manifestUri = Resolve(entry.ManifestUrl);
+            var entryId = Required(entry.Id, "catalog add-on id");
+            var manifestUri = Resolve(Required(entry.ManifestUrl, "catalog manifestUrl"));
             var data = await ReadAsync(manifestUri).ConfigureAwait(false);
 
             if (IsHtmlOrXml(data))
@@ -63,7 +74,7 @@ namespace AlibreAddOnManager
                     $"The manifest for '{entry.Name}' at '{manifestUri}' returned an HTML page or XML markup instead of JSON.");
             }
 
-            AddOnManifest manifest;
+            AddOnManifest? manifest;
             try
             {
                 manifest = Json.Parse<AddOnManifest>(data);
@@ -76,27 +87,34 @@ namespace AlibreAddOnManager
 
             if (manifest == null)
                 throw new InvalidDataException($"The manifest for '{entry.Name}' at '{manifestUri}' was empty or invalid.");
-            if (!ManagerPaths.SameId(manifest.Id, entry.Id))
-                throw new InvalidDataException($"Manifest id {manifest.Id} does not match catalog entry {entry.Id}.");
+            var manifestId = Required(manifest.Id, "manifest id");
+            if (!Guid.TryParse(manifestId, out _)) throw new InvalidDataException($"Manifest id '{manifestId}' is not a GUID.");
+            if (!ManagerPaths.SameId(manifestId, entryId))
+                throw new InvalidDataException($"Manifest id {manifestId} does not match catalog entry {entryId}.");
             return manifest;
         }
 
         /// <summary>Downloads into the per-user cache and checks size and SHA-256.</summary>
         public async Task<string> DownloadAsync(AddOnManifest manifest, AddOnVersion version)
         {
-            if (string.IsNullOrWhiteSpace(version.Sha256))
-                throw new InvalidDataException("Catalog entry has no sha256; refusing to install.");
+            var sha256 = Required(version.Sha256, "package sha256");
+            var packageUrl = Required(version.PackageUrl, "packageUrl");
+            var manifestId = Required(manifest.Id, "manifest id");
+            if (!Guid.TryParse(manifestId, out var manifestGuid))
+                throw new InvalidDataException($"Manifest id '{manifestId}' is not a GUID.");
+            var folderName = Required(manifest.FolderName, "manifest folderName");
+            var versionName = Required(version.Version, "package version");
 
-            var uri = Resolve(version.PackageUrl);
+            var uri = Resolve(packageUrl);
             var fileName = Path.GetFileName(uri.LocalPath);
             if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                fileName = manifest.FolderName + "-" + version.Version + Packages.Extension;
+                fileName = folderName + "-" + versionName + Packages.Extension;
 
-            var directory = Path.Combine(ManagerPaths.CacheDirectory, Guid.Parse(manifest.Id).ToString("N"), SafeSegment(version.Version));
+            var directory = Path.Combine(ManagerPaths.CacheDirectory, manifestGuid.ToString("N"), SafeSegment(versionName));
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, fileName);
 
-            if (!File.Exists(path) || !HashMatches(path, version.Sha256))
+            if (!File.Exists(path) || !HashMatches(path, sha256))
             {
                 var data = await ReadAsync(uri).ConfigureAwait(false);
                 if (version.Size.HasValue && data.LongLength != version.Size.Value)
@@ -104,7 +122,7 @@ namespace AlibreAddOnManager
                 File.WriteAllBytes(path, data);
             }
 
-            if (!HashMatches(path, version.Sha256))
+            if (!HashMatches(path, sha256))
             {
                 File.Delete(path);
                 throw new InvalidDataException("Downloaded package does not match the catalog sha256.");
@@ -114,9 +132,9 @@ namespace AlibreAddOnManager
         }
 
         /// <summary>Newest version compatible with the running build, else the newest overall.</summary>
-        public static AddOnVersion ChooseVersion(AddOnManifest manifest, int runningBuild)
+        public static AddOnVersion? ChooseVersion(AddOnManifest manifest, int runningBuild)
         {
-            var ordered = manifest.Versions
+            var ordered = (manifest.Versions ?? new List<AddOnVersion>())
                 .Where(v => v != null && !string.IsNullOrWhiteSpace(v.PackageUrl))
                 .Where(v => string.IsNullOrEmpty(v.Kind) || v.Kind == "integrated")
                 .OrderByDescending(v => v.Version, Comparer.Instance)
@@ -128,7 +146,8 @@ namespace AlibreAddOnManager
         {
             if (Uri.TryCreate(relativeOrAbsolute, UriKind.Absolute, out var absolute) && absolute.Scheme != Uri.UriSchemeFile)
                 return Check(absolute);
-            return Check(new Uri(IndexUri, relativeOrAbsolute));
+            var indexUri = IndexUri ?? throw new InvalidOperationException("Catalog index has not been loaded.");
+            return Check(new Uri(indexUri, relativeOrAbsolute));
         }
 
         public static Uri ToUri(string location)
@@ -260,9 +279,9 @@ namespace AlibreAddOnManager
                 response.EnsureSuccessStatusCode();
 
                 var mediaType = response.Content.Headers.ContentType?.MediaType;
-                if (!string.IsNullOrEmpty(mediaType) &&
-                    (mediaType.Equals("text/html", StringComparison.OrdinalIgnoreCase) ||
-                     mediaType.Equals("application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
+                if (mediaType != null &&
+                    (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
                 {
                     throw new InvalidDataException(
                         $"The URL '{uri}' returned an HTML page (Content-Type: {mediaType}) instead of JSON catalog data. Ensure the URL points to a raw catalog or valid index.json.");
@@ -289,7 +308,7 @@ namespace AlibreAddOnManager
             return string.Equals(Packages.Sha256File(path), sha256.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string SafeSegment(string text)
+        private static string SafeSegment(string? text)
         {
             var invalid = Path.GetInvalidFileNameChars();
             var clean = new string((text ?? "unknown").Select(c => invalid.Contains(c) ? '_' : c).ToArray());
@@ -303,10 +322,17 @@ namespace AlibreAddOnManager
             return client;
         }
 
-        private sealed class Comparer : System.Collections.Generic.IComparer<string>
+        private static string Required(string? value, string field)
+        {
+            if (value == null || string.IsNullOrWhiteSpace(value))
+                throw new InvalidDataException("Catalog is missing '" + field + "'.");
+            return value;
+        }
+
+        private sealed class Comparer : IComparer<string?>
         {
             public static readonly Comparer Instance = new Comparer();
-            public int Compare(string x, string y) => Packages.CompareVersions(x, y);
+            public int Compare(string? x, string? y) => Packages.CompareVersions(x, y);
         }
     }
 }

@@ -16,19 +16,19 @@ namespace AlibreCatalogManager
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AlibreCatalogManager", "settings.json");
 
         [DataMember(Name = "lastCatalog", EmitDefaultValue = false)]
-        public string LastCatalog { get; set; }
+        public string? LastCatalog { get; set; }
 
         [DataMember(Name = "lastProject", EmitDefaultValue = false)]
-        public string LastProject { get; set; }
+        public string? LastProject { get; set; }
 
         [DataMember(Name = "msBuildPath", EmitDefaultValue = false)]
-        public string MsBuildPath { get; set; }
+        public string? MsBuildPath { get; set; }
 
         public static AppSettings Load()
         {
             try
             {
-                return File.Exists(FilePath) ? Json.ReadFile<AppSettings>(FilePath) : new AppSettings();
+                return File.Exists(FilePath) ? Json.ReadFile<AppSettings>(FilePath) ?? new AppSettings() : new AppSettings();
             }
             catch (Exception)
             {

@@ -17,14 +17,15 @@ namespace AlibreAddOnManager
         private const int ErrorCancelled = 1223; // user declined the UAC prompt
 
         /// <summary>Returns the started helper, or null if the user declined elevation.</summary>
-        public static Process Launch(InstallPlan plan, out string planPath)
+        public static Process? Launch(InstallPlan plan, out string planPath)
         {
             plan.Created = DateTime.UtcNow.ToString("o");
             Directory.CreateDirectory(ManagerPaths.PlanDirectory);
             planPath = Path.Combine(ManagerPaths.PlanDirectory, "plan-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
             Json.WriteFile(planPath, plan);
 
-            var sourceDirectory = Path.GetDirectoryName(typeof(HelperLauncher).Assembly.Location);
+            var sourceDirectory = Path.GetDirectoryName(typeof(HelperLauncher).Assembly.Location)
+                                  ?? throw new InvalidOperationException("Could not locate the add-on folder.");
             foreach (var name in ManagerPaths.HelperRequiredFiles)
             {
                 var required = Path.Combine(sourceDirectory, name);

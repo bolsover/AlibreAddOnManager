@@ -33,14 +33,14 @@ namespace AlibreCatalogManager.Publishing
         {
         }
 
-        public string ProjectFile { get; private set; }
+        public string ProjectFile { get; private set; } = null!;
 
-        public string Folder { get; private set; }
+        public string Folder { get; private set; } = null!;
 
         /// <summary>The source addon.json (not the copy in the build output).</summary>
-        public string ManifestPath { get; private set; }
+        public string ManifestPath { get; private set; } = null!;
 
-        public PackageManifest Manifest { get; private set; }
+        public PackageManifest Manifest { get; private set; } = null!;
 
         /// <summary>True if addon.json was missing and <see cref="Load"/> built it from the .adc.</summary>
         public bool ManifestCreated { get; private set; }
@@ -55,11 +55,13 @@ namespace AlibreCatalogManager.Publishing
             var path = Path.GetFullPath(projectFile);
             if (!File.Exists(path)) throw new FileNotFoundException("Project file not found.", path);
 
+            var folder = Path.GetDirectoryName(path)
+                         ?? throw new InvalidDataException("The project file has no containing folder.");
             var project = new AddOnProject
             {
                 ProjectFile = path,
-                Folder = Path.GetDirectoryName(path),
-                ManifestPath = Path.Combine(Path.GetDirectoryName(path), Packages.ManifestEntry)
+                Folder = folder,
+                ManifestPath = Path.Combine(folder, Packages.ManifestEntry)
             };
 
             if (!File.Exists(project.ManifestPath))
@@ -70,7 +72,8 @@ namespace AlibreCatalogManager.Publishing
                 project.ManifestCreated = true;
             }
 
-            var manifest = Json.ReadFile<PackageManifest>(project.ManifestPath);
+            var manifest = Json.ReadFile<PackageManifest>(project.ManifestPath)
+                           ?? throw new InvalidDataException($"{Packages.ManifestEntry} is empty or invalid.");
             if (!Guid.TryParse(manifest.Id, out _))
                 throw new InvalidOperationException($"{Packages.ManifestEntry} has no valid 'id'.");
             if (!ManagerPaths.IsValidFolderName(manifest.FolderName))
@@ -95,7 +98,7 @@ namespace AlibreCatalogManager.Publishing
         }
 
         /// <summary>major.minor.patch from AssemblyFileVersion / AssemblyVersion, or null.</summary>
-        private string AssemblyVersion()
+        private string? AssemblyVersion()
         {
             if (!File.Exists(AssemblyInfoPath)) return null;
             var match = AssemblyVersionValue.Match(File.ReadAllText(AssemblyInfoPath));
@@ -103,7 +106,7 @@ namespace AlibreCatalogManager.Publishing
         }
 
         /// <summary>The add-on arch implied by the project's PlatformTarget, or null.</summary>
-        private string PlatformArch()
+        private string? PlatformArch()
         {
             // A C++ add-on project only has x64 configurations.
             if (IsNative) return "x64";
@@ -128,15 +131,15 @@ namespace AlibreCatalogManager.Publishing
         /// </summary>
         public string OutputFolder(string configuration)
         {
-            string outputPath = null;
+            string? outputPath = null;
             try
             {
                 var groups = XDocument.Load(ProjectFile).Root?.Elements().Where(e => e.Name.LocalName == "PropertyGroup").ToList();
                 foreach (var group in groups ?? Enumerable.Empty<XElement>())
                 {
                     var value = group.Elements().FirstOrDefault(e => e.Name.LocalName == "OutputPath")?.Value;
-                    if (string.IsNullOrWhiteSpace(value) || value.Contains("$(")) continue;
-                    var condition = (string) group.Attribute("Condition");
+                    if (value == null || string.IsNullOrWhiteSpace(value) || value.Contains("$(")) continue;
+                    var condition = (string)group.Attribute("Condition");
                     if (condition == null)
                         outputPath = outputPath ?? value;
                     else if (condition.IndexOf("'" + configuration + "|", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -169,7 +172,7 @@ namespace AlibreCatalogManager.Publishing
                 throw new InvalidOperationException($"Cannot find a single \"version\" in {Packages.ManifestEntry}; edit it by hand.");
             var updatedManifest = ManifestVersion.Replace(manifestText, "${1}" + version + "${2}");
 
-            string updatedInfo = null;
+            string? updatedInfo = null;
             var infoBom = false;
             if (File.Exists(AssemblyInfoPath))
             {

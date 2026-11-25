@@ -40,9 +40,9 @@ namespace AlibreAddOnManager
         /// comma- or dot-separated numeric field ("PRODUCTVERSION 29,1,0,29126" → 29126).
         /// Returns 0 if it cannot be parsed.
         /// </summary>
-        public static int ParseBuild(string version)
+        public static int ParseBuild(string? version)
         {
-            if (string.IsNullOrWhiteSpace(version)) return 0;
+            if (version == null || string.IsNullOrWhiteSpace(version)) return 0;
             var fields = version.Split(new[] { ',', '.', ' ' }, StringSplitOptions.RemoveEmptyEntries);
             for (var i = fields.Length - 1; i >= 0; i--)
                 if (int.TryParse(fields[i].Trim(), out var build))

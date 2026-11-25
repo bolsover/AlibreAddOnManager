@@ -13,7 +13,7 @@
     <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
-    <LangVersion>10</LangVersion>
+    <LangVersion>8.0</LangVersion>
     <!-- Alibre's AlibreX / AlibreAddOn interop assemblies are AMD64-only, and the
              add-on only ever runs inside 64-bit Alibre. -->
     <PlatformTarget>x64</PlatformTarget>
@@ -21,6 +21,7 @@
              Override on the command line: /p:AlibreProgramDir=... -->
     <AlibreProgramDir Condition=" '$(AlibreProgramDir)' == '' ">C:\Program Files\Alibre Design 29.1.0.29127\Program</AlibreProgramDir>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

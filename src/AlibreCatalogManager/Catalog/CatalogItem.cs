@@ -13,18 +13,18 @@ namespace AlibreCatalogManager.Catalog
     /// </summary>
     public sealed class CatalogItem
     {
-        public string Id { get; set; }
+        public string Id { get; set; } = string.Empty;
 
-        public CatalogEntry Entry { get; set; }
+        public CatalogEntry Entry { get; set; } = null!;
 
         /// <summary>Null when the manifest is missing, unreadable or remote.</summary>
-        public AddOnManifest Manifest { get; set; }
+        public AddOnManifest? Manifest { get; set; }
 
         /// <summary>Full local path of the manifest; null for a remote manifestUrl.</summary>
-        public string ManifestPath { get; set; }
+        public string? ManifestPath { get; set; }
 
         /// <summary>Why <see cref="Manifest"/> is null, if it is.</summary>
-        public string ManifestError { get; set; }
+        public string? ManifestError { get; set; }
 
         /// <summary>True when the add-on appears in index.json.</summary>
         public bool Listed { get; set; }
@@ -36,16 +36,16 @@ namespace AlibreCatalogManager.Catalog
 
         public string Name => Entry?.Name ?? Manifest?.Name ?? Id;
 
-        public string Publisher => Entry?.Publisher ?? Manifest?.Publisher?.Name;
+        public string? Publisher => Entry?.Publisher ?? Manifest?.Publisher?.Name;
 
         public IEnumerable<AddOnVersion> VersionsNewestFirst =>
-            (Manifest?.Versions ?? new List<AddOnVersion>()).Where(v => v != null).OrderByDescending(v => v.Version, VersionComparer.Instance);
+            (Manifest?.Versions ?? new List<AddOnVersion>()).Where(v => v != null).OrderByDescending(v => v.Version ?? string.Empty, VersionComparer.Instance);
 
-        public AddOnVersion LatestVersion => VersionsNewestFirst.FirstOrDefault();
+        public AddOnVersion? LatestVersion => VersionsNewestFirst.FirstOrDefault();
 
-        public bool Matches(string filter)
+        public bool Matches(string? filter)
         {
-            if (string.IsNullOrWhiteSpace(filter)) return true;
+            if (filter == null || string.IsNullOrWhiteSpace(filter)) return true;
             var haystack = string.Join("\n", Name, Id, Publisher, Entry?.Summary, Manifest?.FolderName,
                 string.Join(" ", Entry?.Tags ?? new List<string>()));
             return haystack.IndexOf(filter.Trim(), StringComparison.OrdinalIgnoreCase) >= 0;

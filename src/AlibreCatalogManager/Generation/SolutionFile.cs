@@ -9,7 +9,7 @@ namespace AlibreCatalogManager.Generation
     public static class SolutionFile
     {
         /// <summary>The nearest .slnx in <paramref name="folder"/> or any parent, or null.</summary>
-        public static string FindNearest(string folder)
+        public static string? FindNearest(string folder)
         {
             for (var dir = string.IsNullOrEmpty(folder) ? null : new DirectoryInfo(folder); dir != null; dir = dir.Parent)
             {
@@ -28,10 +28,12 @@ namespace AlibreCatalogManager.Generation
         public static void AddProject(string solutionPath, string projectFile, string projectGuid)
         {
             var text = File.ReadAllText(solutionPath);
-            var relative = RelativePath(Path.GetDirectoryName(Path.GetFullPath(solutionPath)), projectFile);
+            var solutionFolder = Path.GetDirectoryName(Path.GetFullPath(solutionPath))
+                                 ?? throw new InvalidDataException("The solution path has no containing folder.");
+            var relative = RelativePath(solutionFolder, projectFile);
 
             foreach (var project in XDocument.Parse(text).Root?.Descendants("Project") ?? new XElement[0])
-                if (string.Equals((string) project.Attribute("Path"), relative, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals((string)project.Attribute("Path"), relative, StringComparison.OrdinalIgnoreCase))
                     return;
 
             var close = text.LastIndexOf("</Solution>", StringComparison.Ordinal);

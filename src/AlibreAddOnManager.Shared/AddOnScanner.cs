@@ -19,7 +19,15 @@ namespace AlibreAddOnManager
             try
             {
                 if (File.Exists(ManagerPaths.StateFile))
-                    return Json.ReadFile<ManagerState>(ManagerPaths.StateFile) ?? new ManagerState();
+                {
+                    var state = Json.ReadFile<ManagerState>(ManagerPaths.StateFile);
+                    if (state != null)
+                    {
+                        state.Tracked = state.Tracked ?? new List<TrackedAddOn>();
+                        state.Disabled = state.Disabled ?? new List<DisabledAddOn>();
+                        return state;
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -33,12 +41,13 @@ namespace AlibreAddOnManager
         {
             var result = new List<InstalledAddOn>();
             var registered = AddOnRegistry.ReadAll();
+            var trackedAddOns = state.Tracked ?? new List<TrackedAddOn>();
 
             foreach (var pair in registered)
             {
-                var id = ManagerPaths.NormalizeId(pair.Key);
+                var id = ManagerPaths.NormalizeId(pair.Key) ?? pair.Key;
                 var folder = pair.Value;
-                var tracked = state.Tracked.FirstOrDefault(t => ManagerPaths.SameId(t.Id, id));
+                var tracked = trackedAddOns.FirstOrDefault(t => ManagerPaths.SameId(t.Id, id));
                 var item = new InstalledAddOn { Id = id, Folder = folder, Tracked = tracked };
 
                 if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
@@ -67,7 +76,7 @@ namespace AlibreAddOnManager
                     }
                     else
                     {
-                        item.Name = item.Adc.DisplayName;
+                        item.Name = item.Adc.DisplayName ?? string.Empty;
                         item.Status = mismatch ? AddOnStatus.Warning
                             : ManagerPaths.SameId(id, ManagerPaths.SelfId) ? AddOnStatus.Self
                             : tracked != null ? AddOnStatus.Tracked
@@ -84,10 +93,10 @@ namespace AlibreAddOnManager
                 result.Add(item);
             }
 
-            foreach (var disabled in state.Disabled)
+            foreach (var disabled in state.Disabled ?? new List<DisabledAddOn>())
             {
                 if (AddOnRegistry.FindValueName(registered, disabled.Id) != null) continue; // re-registered externally
-                var tracked = state.Tracked.FirstOrDefault(t => ManagerPaths.SameId(t.Id, disabled.Id));
+                var tracked = trackedAddOns.FirstOrDefault(t => ManagerPaths.SameId(t.Id, disabled.Id));
                 var adc = AdcFile.FindForIdentifier(disabled.Folder, disabled.Id);
                 var mismatch = false;
                 if (adc == null)
@@ -98,15 +107,15 @@ namespace AlibreAddOnManager
 
                 result.Add(new InstalledAddOn
                 {
-                    Id = ManagerPaths.NormalizeId(disabled.Id),
-                    Name = adc?.DisplayName ?? disabled.Name ?? disabled.Id,
-                    Folder = disabled.Folder,
+                    Id = ManagerPaths.NormalizeId(disabled.Id) ?? disabled.Id ?? string.Empty,
+                    Name = adc?.DisplayName ?? disabled.Name ?? disabled.Id ?? string.Empty,
+                    Folder = disabled.Folder ?? string.Empty,
                     Adc = adc,
                     Tracked = tracked,
                     Version = tracked?.Version ?? (adc != null ? DllFileVersion(adc) : null),
                     Status = AddOnStatus.Disabled,
                     Problem = adc == null ? "Folder or .adc no longer present; Enable would register a broken add-on."
-                        : mismatch ? IdentifierMismatch(ManagerPaths.NormalizeId(disabled.Id), adc)
+                        : mismatch ? IdentifierMismatch(ManagerPaths.NormalizeId(disabled.Id) ?? disabled.Id ?? string.Empty, adc)
                         : null
                 });
             }
@@ -118,12 +127,13 @@ namespace AlibreAddOnManager
 
         private static string IdentifierMismatch(string registeredId, AdcFile adc)
         {
-            var adcId = string.IsNullOrWhiteSpace(adc.Identifier) ? "(none)" : adc.Identifier.Trim();
+            var identifier = adc.Identifier;
+            var adcId = identifier == null || string.IsNullOrWhiteSpace(identifier) ? "(none)" : identifier.Trim();
             return "Registered id " + registeredId + " does not match the Identifier " + adcId + " in "
                    + Path.GetFileName(adc.Path) + ". Alibre still loads it, but the registry value name and the .adc Identifier should be the same GUID.";
         }
 
-        private static string DllFileVersion(AdcFile adc)
+        private static string? DllFileVersion(AdcFile adc)
         {
             try
             {

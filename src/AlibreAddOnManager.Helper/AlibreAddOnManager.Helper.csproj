@@ -12,12 +12,13 @@
         <FileAlignment>512</FileAlignment>
         <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
         <Deterministic>true</Deterministic>
-        <LangVersion>7.3</LangVersion>
+        <LangVersion>8.0</LangVersion>
         <!-- 64-bit process: the registry and Program Files views must be the 64-bit ones. -->
         <PlatformTarget>AnyCPU</PlatformTarget>
         <Prefer32Bit>false</Prefer32Bit>
         <!-- Build next to the add-in DLL so bin\<Config>\ is a complete deploy folder. -->
         <OutputPath>..\AlibreAddOnManager\bin\$(Configuration)\</OutputPath>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugSymbols>true</DebugSymbols>

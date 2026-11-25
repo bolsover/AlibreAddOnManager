@@ -11,7 +11,7 @@ namespace AlibreAddOnManager.Models
     public class ManagerState
     {
         [DataMember(Name = "schemaVersion")] public int SchemaVersion { get; set; } = 1;
-        [DataMember(Name = "tracked")] public List<TrackedAddOn> Tracked { get; set; } = new List<TrackedAddOn>();
-        [DataMember(Name = "disabled")] public List<DisabledAddOn> Disabled { get; set; } = new List<DisabledAddOn>();
+        [DataMember(Name = "tracked")] public List<TrackedAddOn>? Tracked { get; set; } = new List<TrackedAddOn>();
+        [DataMember(Name = "disabled")] public List<DisabledAddOn>? Disabled { get; set; } = new List<DisabledAddOn>();
     }
 }

@@ -31,13 +31,13 @@ namespace AlibreCatalogManager.Generation
         public AddOnLanguage Language { get; set; } = AddOnLanguage.CSharp;
 
         /// <summary>Project, assembly, namespace and deploy-folder name.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
-        public string FriendlyName { get; set; }
-        public string MenuText { get; set; }
-        public string AuthorName { get; set; }
-        public string AuthorLink { get; set; }
-        public string Description { get; set; }
+        public string FriendlyName { get; set; } = string.Empty;
+        public string MenuText { get; set; } = string.Empty;
+        public string AuthorName { get; set; } = string.Empty;
+        public string? AuthorLink { get; set; }
+        public string? Description { get; set; }
         public string Workspace { get; set; } = "Always";
 
         /// <summary>Catalog version, major.minor.patch.</summary>
@@ -49,15 +49,15 @@ namespace AlibreCatalogManager.Generation
         public Guid Id { get; set; } = Guid.NewGuid();
 
         /// <summary>Alibre's Program folder: the AlibreX / AlibreAddOn interop assemblies, or for C++ their type libraries.</summary>
-        public string AlibreProgramDir { get; set; }
+        public string AlibreProgramDir { get; set; } = string.Empty;
 
         /// <summary>Folder the project folder is created in.</summary>
-        public string OutputRoot { get; set; }
+        public string OutputRoot { get; set; } = string.Empty;
 
         public bool IncludeDeployScripts { get; set; } = true;
 
         /// <summary>Optional .slnx to add the new project to; null to skip.</summary>
-        public string SolutionPath { get; set; }
+        public string? SolutionPath { get; set; }
 
         public Color IconColor { get; set; } = Color.FromArgb(30, 110, 180);
 
@@ -124,9 +124,9 @@ namespace AlibreCatalogManager.Generation
             return errors;
         }
 
-        private static void RequireSingleLine(List<string> errors, string value, string what)
+        private static void RequireSingleLine(List<string> errors, string? value, string what)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            if (value == null || string.IsNullOrWhiteSpace(value))
                 errors.Add($"Enter the {what}.");
             else if (value.IndexOfAny(new[] { '\r', '\n' }) >= 0)
                 errors.Add($"The {what} must be a single line.");

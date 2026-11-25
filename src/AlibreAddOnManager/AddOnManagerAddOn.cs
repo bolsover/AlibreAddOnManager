@@ -16,8 +16,10 @@ namespace AlibreAddOnManager
         public const string Title = "Manage Add-Ons";
 
         private const int MenuIdRoot = 7301;
+        private const int MenuIdManage = 7302;
+        private static readonly int[] SubMenuIds = { MenuIdManage };
       
-        private readonly int _build;
+      
 
         private readonly IADRoot _root;
         private readonly IntPtr _parentWindow;
@@ -26,20 +28,24 @@ namespace AlibreAddOnManager
         {
             _root = root;
             _parentWindow = parentWindow;
-            _build = AlibreVersion.GetBuild(root);
+     
         }
 
         public int RootMenuItem => MenuIdRoot;
 
-        public bool HasSubMenus(int menuId)
+        public bool HasSubMenus(int menuId) => menuId == MenuIdRoot;
+
+        public Array SubMenuItems(int menuId) => menuId == MenuIdRoot ? SubMenuIds : new int[0];
+
+        public string MenuItemText(int menuId)
         {
-            return menuId == MenuIdRoot;
+            switch (menuId)
+            {
+                case MenuIdRoot: return "Manage Add-Ons";
+                case MenuIdManage: return "Manage Add-Ons";
+                default: return string.Empty;
+            }
         }
-        private bool IsSupportedVersion => _build >= AlibreVersion.MinimumBuild;
-        public Array SubMenuItems(int menuId) => null;
-
-
-        public string MenuItemText(int menuId)=> menuId == MenuIdRoot ? Title : string.Empty;
 
         public bool PopupMenu(int menuId) => menuId == MenuIdRoot;
 
@@ -57,9 +63,10 @@ namespace AlibreAddOnManager
 
         public bool HasPersistentDataToSave(string sessionIdentifier) => false;
 
-        public IAlibreAddOnCommand InvokeCommand(int menuId, string sessionIdentifier)
+        public IAlibreAddOnCommand? InvokeCommand(int menuId, string sessionIdentifier)
         {
           
+            if (menuId != MenuIdManage) return null;
             ShowWindow();
 
             return null;
@@ -71,15 +78,11 @@ namespace AlibreAddOnManager
         {
             try
             {
-                string version = null;
-                try { version = _root?.Version; }
+                string? version = null;
+                try { version = _root.Version; }
                 catch (Exception) { /* version is informational only */ }
                 
-                if (!IsSupportedVersion)
-                {
-                    MessageBox.Show(MenuItemToolTip(MenuIdRoot), Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+            
 
                 if (_form != null && !_form.IsDisposed)
                 {
@@ -89,7 +92,7 @@ namespace AlibreAddOnManager
                     return;
                 }
 
-                _form = new ManagerForm(version);
+                _form = new ManagerForm(version ?? string.Empty);
                 _form.FormClosed += (sender, args) =>  _form = null;
               
                 if (_parentWindow != IntPtr.Zero)
@@ -106,12 +109,7 @@ namespace AlibreAddOnManager
                 MessageBox.Show(ex.ToString(), Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
-        // private void onFormClosed(object sender, FormClosedEventArgs e)
-        // {
-        //     _form = null;
-        //     MenuItemState(menuId, sessionIdentifier) = ADDONMenuStates.ADDON_MENU_ENABLED
-        // }
+      
 
         public void LoadData(IStream pCustomData, string sessionIdentifier)
         {

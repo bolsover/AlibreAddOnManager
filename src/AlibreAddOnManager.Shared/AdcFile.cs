@@ -8,25 +8,32 @@ namespace AlibreAddOnManager
     /// <summary>Reader for an add-on configuration (.adc) file.</summary>
     public class AdcFile
     {
-        public string Path { get; private set; }
-        public string SpecificationVersion { get; private set; }
-        public string FriendlyName { get; private set; }
-        public string AuthorName { get; private set; }
-        public string AuthorLink { get; private set; }
-        public string DllLocation { get; private set; }
-        public string DllTypeText { get; private set; }
+        public string? Path { get; private set; }
+        public string? SpecificationVersion { get; private set; }
+        public string? FriendlyName { get; private set; }
+        public string? AuthorName { get; private set; }
+        public string? AuthorLink { get; private set; }
+        public string? DllLocation { get; private set; }
+        public string? DllTypeText { get; private set; }
         public AddOnDllType DllType { get; private set; }
-        public string LoadedWhen { get; private set; }
-        public string IconLocation { get; private set; }
-        public string MenuText { get; private set; }
-        public string Description { get; private set; }
-        public string Workspace { get; private set; }
-        public string Identifier { get; private set; }
+        public string? LoadedWhen { get; private set; }
+        public string? IconLocation { get; private set; }
+        public string? MenuText { get; private set; }
+        public string? Description { get; private set; }
+        public string? Workspace { get; private set; }
+        public string? Identifier { get; private set; }
 
-        public string DisplayName =>
-            !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName.Trim()
-            : !string.IsNullOrWhiteSpace(MenuText) ? MenuText.Trim()
-            : System.IO.Path.GetFileNameWithoutExtension(Path);
+        public string? DisplayName
+        {
+            get
+            {
+                var friendlyName = FriendlyName;
+                if (friendlyName != null && !string.IsNullOrWhiteSpace(friendlyName)) return friendlyName.Trim();
+                var menuText = MenuText;
+                if (menuText != null && !string.IsNullOrWhiteSpace(menuText)) return menuText.Trim();
+                return System.IO.Path.GetFileNameWithoutExtension(Path);
+            }
+        }
 
         public static AdcFile Load(string path)
         {
@@ -63,7 +70,7 @@ namespace AlibreAddOnManager
                 DllLocation = Attribute(dll, "location"),
                 DllTypeText = typeText,
                 DllType = string.IsNullOrWhiteSpace(typeText) ? AddOnDllType.Native
-                    : string.Equals(typeText.Trim(), "Managed", StringComparison.OrdinalIgnoreCase) ? AddOnDllType.Managed
+                    : string.Equals(typeText?.Trim(), "Managed", StringComparison.OrdinalIgnoreCase) ? AddOnDllType.Managed
                     : AddOnDllType.Unrecognised,
                 LoadedWhen = Attribute(dll, "loadedWhen"),
                 IconLocation = Attribute(Element(root, "Icon"), "location"),
@@ -78,9 +85,9 @@ namespace AlibreAddOnManager
         /// Finds the .adc in a folder whose Identifier matches — a folder can hold
         /// more than one .adc. Returns null if none matches.
         /// </summary>
-        public static AdcFile FindForIdentifier(string folder, string id)
+        public static AdcFile? FindForIdentifier(string? folder, string? id)
         {
-            if (!Directory.Exists(folder)) return null;
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return null;
             foreach (var file in Directory.GetFiles(folder, "*.adc"))
             {
                 try
@@ -104,10 +111,10 @@ namespace AlibreAddOnManager
         /// loads such an add-on, so the lone .adc is the one it uses. Returns null if
         /// the folder has no readable .adc or more than one (which one is ambiguous).
         /// </summary>
-        public static AdcFile FindOnly(string folder)
+        public static AdcFile? FindOnly(string? folder)
         {
-            if (!Directory.Exists(folder)) return null;
-            AdcFile found = null;
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return null;
+            AdcFile? found = null;
             foreach (var file in Directory.GetFiles(folder, "*.adc"))
             {
                 try
@@ -126,10 +133,12 @@ namespace AlibreAddOnManager
         }
 
         /// <summary>Resolves the DLL location against the .adc's folder (it may be absolute).</summary>
-        public string ResolveDllPath()
+        public string? ResolveDllPath()
         {
             if (string.IsNullOrWhiteSpace(DllLocation) || Path == null) return null;
-            return System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path), DllLocation));
+            var directory = System.IO.Path.GetDirectoryName(Path);
+            if (directory == null) return null;
+            return System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, DllLocation));
         }
 
         public static string DllTypeName(AddOnDllType type)
@@ -142,12 +151,12 @@ namespace AlibreAddOnManager
             }
         }
 
-        private static XElement Element(XElement parent, string localName)
+        private static XElement? Element(XElement? parent, string localName)
         {
             return parent?.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, localName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static string Attribute(XElement element, string localName)
+        private static string? Attribute(XElement? element, string localName)
         {
             return element?.Attributes().FirstOrDefault(a => string.Equals(a.Name.LocalName, localName, StringComparison.OrdinalIgnoreCase))?.Value;
         }

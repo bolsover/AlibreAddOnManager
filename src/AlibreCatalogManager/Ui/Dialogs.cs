@@ -21,15 +21,19 @@ namespace AlibreCatalogManager.Ui
             Show(owner, e.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
 
         /// <summary>A folder, or null if cancelled.</summary>
-        public static string BrowseFolder(DependencyObject owner, string title, string initial = null)
+        public static string? BrowseFolder(DependencyObject owner, string title, string? initial = null)
         {
-            var dialog = new OpenFolderDialog { Title = title };
-            if (!string.IsNullOrWhiteSpace(initial) && System.IO.Directory.Exists(initial)) dialog.InitialDirectory = initial;
-            return dialog.ShowDialog(Window.GetWindow(owner)) == true ? dialog.FolderName : null;
+            var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = title };
+            if (!string.IsNullOrWhiteSpace(initial) && System.IO.Directory.Exists(initial)) dialog.SelectedPath = initial;
+
+            var window = Window.GetWindow(owner);
+            var handle = window == null ? IntPtr.Zero : new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            var result = handle == IntPtr.Zero ? dialog.ShowDialog() : dialog.ShowDialog(new WindowHandle(handle));
+            return result == System.Windows.Forms.DialogResult.OK ? dialog.SelectedPath : null;
         }
 
         /// <summary>A file, or null if cancelled.</summary>
-        public static string OpenFile(DependencyObject owner, string title, string filter, string initialDirectory = null)
+        public static string? OpenFile(DependencyObject owner, string title, string filter, string? initialDirectory = null)
         {
             var dialog = new OpenFileDialog { Title = title, Filter = filter };
             if (!string.IsNullOrWhiteSpace(initialDirectory) && System.IO.Directory.Exists(initialDirectory)) dialog.InitialDirectory = initialDirectory;
@@ -46,6 +50,13 @@ namespace AlibreCatalogManager.Ui
         private sealed class RestoreCursor : IDisposable
         {
             public void Dispose() => Mouse.OverrideCursor = null;
+        }
+
+        private sealed class WindowHandle : System.Windows.Forms.IWin32Window
+        {
+            public WindowHandle(IntPtr handle) => Handle = handle;
+
+            public IntPtr Handle { get; }
         }
     }
 }

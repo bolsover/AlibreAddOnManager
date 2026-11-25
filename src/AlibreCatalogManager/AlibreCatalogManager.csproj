@@ -2,10 +2,10 @@
     <PropertyGroup>
         <!-- A standalone WPF tool for catalog authors; it never loads AlibreX. -->
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net10.0-windows</TargetFramework>
+        <TargetFramework>net481</TargetFramework>
         <UseWPF>true</UseWPF>
-        <LangVersion>10.0</LangVersion>
-        <Nullable>disable</Nullable>
+        <LangVersion>8.0</LangVersion>
+        <Nullable>enable</Nullable>
         <ImplicitUsings>disable</ImplicitUsings>
         <RootNamespace>AlibreCatalogManager</RootNamespace>
         <AssemblyName>AlibreCatalogManager</AssemblyName>
@@ -52,6 +52,8 @@
       <Reference Include="AlibreX">
         <HintPath>C:\Program Files\Alibre Design 29.1.1.29133\Program\AlibreX.dll</HintPath>
       </Reference>
+      <Reference Include="System.IO.Compression" />
+      <Reference Include="System.IO.Compression.FileSystem" />
     </ItemGroup>
    
 </Project>

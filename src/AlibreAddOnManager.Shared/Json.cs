@@ -12,19 +12,19 @@ namespace AlibreAddOnManager
     /// </summary>
     public static class Json
     {
-        public static T Parse<T>(Stream stream)
+        public static T? Parse<T>(Stream stream) where T : class
         {
             var serializer = new DataContractJsonSerializer(typeof(T), Settings());
-            return (T) serializer.ReadObject(stream);
+            return serializer.ReadObject(stream) as T;
         }
 
-        public static T Parse<T>(byte[] data)
+        public static T? Parse<T>(byte[] data) where T : class
         {
             using (var stream = new MemoryStream(data))
                 return Parse<T>(stream);
         }
 
-        public static T ReadFile<T>(string path)
+        public static T? ReadFile<T>(string path) where T : class
         {
             using (var stream = File.OpenRead(path))
                 return Parse<T>(stream);

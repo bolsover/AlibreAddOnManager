@@ -33,7 +33,7 @@ namespace AlibreAddOnManager
         }
 
         /// <summary>Finds the value name for an id, tolerating case/format differences.</summary>
-        public static string FindValueName(IDictionary<string, string> registered, string id)
+        public static string? FindValueName(IDictionary<string, string> registered, string? id)
         {
             foreach (var name in registered.Keys)
                 if (ManagerPaths.SameId(name, id))

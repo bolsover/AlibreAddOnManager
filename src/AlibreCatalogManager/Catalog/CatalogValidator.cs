@@ -23,14 +23,14 @@ namespace AlibreCatalogManager.Catalog
                 issues.Add(CatalogIssue.Error(null, $"index.json schemaVersion is {doc.SchemaVersion}; the manager only reads 1."));
 
             foreach (var group in doc.Items.Where(i => i.Listed).GroupBy(i => i.Id, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
-                foreach (var item in group)
-                    issues.Add(CatalogIssue.Error(item, $"Listed {group.Count()} times in index.json."));
+            foreach (var item in group)
+                issues.Add(CatalogIssue.Error(item, $"Listed {group.Count()} times in index.json."));
 
             foreach (var group in doc.Items.Where(i => !string.IsNullOrWhiteSpace(i.Manifest?.FolderName))
-                         .GroupBy(i => i.Manifest.FolderName, StringComparer.OrdinalIgnoreCase)
+                         .GroupBy(i => i.Manifest?.FolderName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                          .Where(g => g.Select(i => i.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1))
-                foreach (var item in group)
-                    issues.Add(CatalogIssue.Error(item, $"Folder name '{group.Key}' is shared with another add-on; installing one overwrites the other."));
+            foreach (var item in group)
+                issues.Add(CatalogIssue.Error(item, $"Folder name '{group.Key}' is shared with another add-on; installing one overwrites the other."));
 
             foreach (var item in doc.Items)
                 CheckItem(doc, item, deep, issues);
@@ -52,14 +52,15 @@ namespace AlibreCatalogManager.Catalog
 
             var icon = doc.ToLocalPath(entry?.IconUrl);
             if (icon != null && !File.Exists(icon))
-                issues.Add(CatalogIssue.Warning(item, $"Icon {entry.IconUrl} not found."));
+                issues.Add(CatalogIssue.Warning(item, $"Icon {entry?.IconUrl} not found."));
 
             var manifest = item.Manifest;
             if (manifest == null)
             {
-                var remote = item.ManifestPath == null && !string.IsNullOrWhiteSpace(entry?.ManifestUrl);
+                var manifestUrl = entry?.ManifestUrl;
+                var remote = item.ManifestPath == null && !string.IsNullOrWhiteSpace(manifestUrl);
                 issues.Add(remote
-                    ? CatalogIssue.Info(item, "Manifest is remote (" + entry.ManifestUrl + "); not checked.")
+                    ? CatalogIssue.Info(item, "Manifest is remote (" + manifestUrl + "); not checked.")
                     : CatalogIssue.Error(item, "Manifest: " + item.ManifestError));
                 return;
             }
@@ -73,19 +74,19 @@ namespace AlibreCatalogManager.Catalog
             if (entry != null && !string.Equals(entry.Name, manifest.Name, StringComparison.Ordinal))
                 issues.Add(CatalogIssue.Warning(item, $"Index name '{entry.Name}' differs from manifest name '{manifest.Name}'."));
 
-            var versions = manifest.Versions.Where(v => v != null).ToList();
+            var versions = (manifest.Versions ?? new List<AddOnVersion>()).Where(v => v != null).ToList();
             if (versions.Count == 0)
             {
                 issues.Add(CatalogIssue.Error(item, "No versions: there is nothing to install."));
                 return;
             }
 
-            foreach (var dup in versions.GroupBy(v => v.Version, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            foreach (var dup in versions.GroupBy(v => v.Version ?? string.Empty, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
                 issues.Add(CatalogIssue.Error(item, $"Version {dup.Key} appears {dup.Count()} times."));
 
             var latest = item.LatestVersion?.Version;
-            if (item.Listed && entry.LatestVersion != latest)
-                issues.Add(CatalogIssue.Warning(item, $"index.json latestVersion is '{entry.LatestVersion}' but the newest version is {latest}."));
+            if (item.Listed && entry?.LatestVersion != latest)
+                issues.Add(CatalogIssue.Warning(item, $"index.json latestVersion is '{entry?.LatestVersion}' but the newest version is {latest}."));
 
             foreach (var version in versions)
                 CheckVersion(doc, item, version, deep, issues);
@@ -123,7 +124,8 @@ namespace AlibreCatalogManager.Catalog
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(version.Sha256) && !string.Equals(Packages.Sha256File(file), version.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (version.Sha256 != null && !string.IsNullOrWhiteSpace(version.Sha256) &&
+                !string.Equals(Packages.Sha256File(file), version.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
                 issues.Add(CatalogIssue.Error(item, label + "sha256 does not match the package file (use Rehash if it was rebuilt on purpose)."));
             if (version.Size.HasValue && new FileInfo(file).Length != version.Size.Value)
                 issues.Add(CatalogIssue.Error(item, label + $"size is {version.Size} but the package is {new FileInfo(file).Length} bytes."));
@@ -133,12 +135,14 @@ namespace AlibreCatalogManager.Catalog
             var result = Packages.Validate(file, item.Id, version.DllType);
             foreach (var error in result.Errors) issues.Add(CatalogIssue.Error(item, label + error));
             foreach (var warning in result.Warnings) issues.Add(CatalogIssue.Warning(item, label + warning));
-            if (result.Manifest == null) return;
+            var packageManifest = result.Manifest;
+            if (packageManifest == null) return;
 
-            if (Packages.CompareVersions(result.Manifest.Version, version.Version) != 0)
-                issues.Add(CatalogIssue.Error(item, label + $"the package's addon.json says version {result.Manifest.Version}."));
-            if (item.Manifest != null && !string.Equals(result.Manifest.FolderName, item.Manifest.FolderName, StringComparison.OrdinalIgnoreCase))
-                issues.Add(CatalogIssue.Warning(item, label + $"the package's folderName '{result.Manifest.FolderName}' differs from the manifest's '{item.Manifest.FolderName}'."));
+            if (Packages.CompareVersions(packageManifest.Version, version.Version) != 0)
+                issues.Add(CatalogIssue.Error(item, label + $"the package's addon.json says version {packageManifest.Version}."));
+            if (item.Manifest != null && !string.Equals(packageManifest.FolderName, item.Manifest.FolderName, StringComparison.OrdinalIgnoreCase))
+                issues.Add(CatalogIssue.Warning(item,
+                    label + $"the package's folderName '{packageManifest.FolderName}' differs from the manifest's '{item.Manifest.FolderName}'."));
         }
     }
 }

@@ -25,9 +25,9 @@ namespace AlibreCatalogManager.Ui
         private readonly CatalogView _catalog;
         private readonly Action _showCatalog;
 
-        private AddOnProject _addOn;
-        private string _packagePath;
-        private CancellationTokenSource _building;
+        private AddOnProject? _addOn;
+        private string? _packagePath;
+        private CancellationTokenSource? _building;
 
         public PublishView(AppSettings settings, CatalogView catalog, Action showCatalog)
         {
@@ -41,8 +41,9 @@ namespace AlibreCatalogManager.Ui
             // Before the tab is first shown, so a project generated on the New Add-On tab
             // is not replaced by the last project.
             FillMsBuild();
-            if (!string.IsNullOrEmpty(_settings.LastProject) && File.Exists(_settings.LastProject))
-                LoadProject(_settings.LastProject);
+            var lastProject = _settings.LastProject;
+            if (!string.IsNullOrEmpty(lastProject) && File.Exists(lastProject))
+                LoadProject(lastProject);
             UpdateUi();
         }
 
@@ -111,10 +112,10 @@ namespace AlibreCatalogManager.Ui
             if (path != null) LoadProject(path);
         }
 
-        private void LoadProject(string projectFile)
+        private void LoadProject(string? projectFile)
         {
             if (IsBusy) return;
-            if (string.IsNullOrEmpty(projectFile))
+            if (projectFile == null || projectFile.Length == 0)
             {
                 _addOn = null;
                 ProjectInfo.Text = string.Empty;
@@ -128,16 +129,17 @@ namespace AlibreCatalogManager.Ui
             ProjectBox.Text = projectFile;
             try
             {
-                _addOn = AddOnProject.Load(projectFile);
-                var m = _addOn.Manifest;
+                var addOn = AddOnProject.Load(projectFile);
+                _addOn = addOn;
+                var m = addOn.Manifest;
                 ProjectInfo.Text = $"{m.Name} — {ManagerPaths.NormalizeId(m.Id)} — folder {m.FolderName}, {m.DllType ?? "?"} {m.Arch ?? ""}".TrimEnd();
                 ProjectInfo.Foreground = SystemColors.GrayTextBrush;
                 VersionBox.Text = m.Version ?? string.Empty;
-                PackageFolderBox.Text = Path.Combine(_addOn.Folder, "bin", "Packages");
-                _settings.LastProject = _addOn.ProjectFile;
+                PackageFolderBox.Text = Path.Combine(addOn.Folder, "bin", "Packages");
+                _settings.LastProject = addOn.ProjectFile;
                 _settings.Save();
-                if (_addOn.ManifestCreated)
-                    Log($"The project had no {Packages.ManifestEntry}; built {_addOn.ManifestPath} from its .adc " +
+                if (addOn.ManifestCreated)
+                    Log($"The project had no {Packages.ManifestEntry}; built {addOn.ManifestPath} from its .adc " +
                         $"(version {m.Version}, no minAlibreBuild). Check it before publishing.");
             }
             catch (Exception e)
@@ -194,7 +196,7 @@ namespace AlibreCatalogManager.Ui
                 }
             }
 
-            var configuration = (string) ((ComboBoxItem) ConfigurationBox.SelectedItem).Content;
+            var configuration = (string)((ComboBoxItem)ConfigurationBox.SelectedItem).Content;
             if (BuildFirstBox.IsChecked == true && !await BuildAsync(configuration)) return;
 
             try
@@ -222,6 +224,9 @@ namespace AlibreCatalogManager.Ui
 
         private async Task<bool> BuildAsync(string configuration)
         {
+            var addOn = _addOn;
+            if (addOn == null) return false;
+
             var msbuild = MsBuildBox.Text.Trim();
             if (!File.Exists(msbuild))
             {
@@ -232,15 +237,16 @@ namespace AlibreCatalogManager.Ui
             _settings.MsBuildPath = msbuild;
             _settings.Save();
 
-            if (_addOn.IsNative && msbuild.IndexOf("Rider", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (addOn.IsNative && msbuild.IndexOf("Rider", StringComparison.OrdinalIgnoreCase) >= 0)
                 Log("Warning: Rider's bundled MSBuild has no C++ targets; a .vcxproj needs MSBuild from Visual Studio or Build Tools with the C++ workload.");
 
-            _building = new CancellationTokenSource();
+            var building = new CancellationTokenSource();
+            _building = building;
             UpdateUi();
             try
             {
-                Log($"Building {Path.GetFileName(_addOn.ProjectFile)} ({configuration}) with {msbuild}");
-                var code = await ProjectBuilder.BuildAsync(msbuild, _addOn.ProjectFile, configuration, LogFromAnyThread, _building.Token);
+                Log($"Building {Path.GetFileName(addOn.ProjectFile)} ({configuration}) with {msbuild}");
+                var code = await ProjectBuilder.BuildAsync(msbuild, addOn.ProjectFile, configuration, LogFromAnyThread, building.Token);
                 if (code == 0) return true;
                 Log($"Build failed (exit code {code}).");
                 Warn("The build failed; see the output for the errors.");
@@ -259,16 +265,16 @@ namespace AlibreCatalogManager.Ui
             }
             finally
             {
-                _building.Dispose();
+                building.Dispose();
                 _building = null;
                 UpdateUi();
             }
         }
 
-        private void SetPackage(string path, PackageValidationResult validation)
+        private void SetPackage(string? path, PackageValidationResult? validation)
         {
-            _packagePath = validation != null && validation.IsValid ? path : null;
-            if (path == null)
+            _packagePath = validation?.IsValid == true ? path : null;
+            if (path == null || validation == null)
                 PackageInfo.Text = string.Empty;
             else
             {

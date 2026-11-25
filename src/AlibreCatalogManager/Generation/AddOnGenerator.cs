@@ -124,7 +124,17 @@ namespace AlibreCatalogManager.Generation
             {
                 // Leave nothing half-written behind; a pre-existing (empty) folder is kept.
                 if (createdFolder && Directory.Exists(folder))
-                    try { Directory.Delete(folder, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                    try
+                    {
+                        Directory.Delete(folder, true);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                    }
+
                 throw;
             }
 
@@ -142,7 +152,10 @@ namespace AlibreCatalogManager.Generation
         {
             var projectGuid = Guid.NewGuid().ToString("D").ToUpperInvariant();
             var menuIdRoot = new Random().Next(1000, 9000) * 10;
-            var description = string.IsNullOrWhiteSpace(spec.Description) ? spec.FriendlyName : spec.Description.Trim();
+            var descriptionText = spec.Description;
+            var description = descriptionText == null || string.IsNullOrWhiteSpace(descriptionText)
+                ? spec.FriendlyName
+                : descriptionText.Trim();
 
             var deployItems = spec.IncludeDeployScripts
                 ? "        <None Include=\"deploy\\install.ps1\"/>\r\n        <None Include=\"deploy\\uninstall.ps1\"/>\r\n"

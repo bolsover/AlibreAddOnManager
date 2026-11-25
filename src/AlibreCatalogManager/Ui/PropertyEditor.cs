@@ -27,7 +27,7 @@ namespace AlibreCatalogManager.Ui
         private readonly Grid _rows = new Grid { Margin = new Thickness(4) };
         private readonly TextBlock _descriptionTitle = new TextBlock { FontWeight = FontWeights.Bold };
         private readonly TextBlock _description = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        private object _selectedObject;
+        private object? _selectedObject;
 
         public PropertyEditor()
         {
@@ -53,7 +53,7 @@ namespace AlibreCatalogManager.Ui
         }
 
         /// <summary>The object being edited, or null for an empty editor.</summary>
-        public object SelectedObject
+        public object? SelectedObject
         {
             get => _selectedObject;
             set
@@ -140,7 +140,7 @@ namespace AlibreCatalogManager.Ui
             AddRow(label, box);
         }
 
-        private void AddRow(UIElement first, UIElement second)
+        private void AddRow(UIElement first, UIElement? second)
         {
             var row = _rows.RowDefinitions.Count;
             _rows.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -185,9 +185,9 @@ namespace AlibreCatalogManager.Ui
             box.Text = Format(property.GetValue(_selectedObject));
         }
 
-        private static string Format(object value) => Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
+        private static string Format(object? value) => Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
 
-        private static bool TryParse(Type type, string text, out object value)
+        private static bool TryParse(Type type, string text, out object? value)
         {
             value = null;
             var underlying = Nullable.GetUnderlyingType(type);
@@ -215,7 +215,7 @@ namespace AlibreCatalogManager.Ui
             return false;
         }
 
-        private void ShowDescription(string title, string text = null)
+        private void ShowDescription(string? title, string? text = null)
         {
             _descriptionTitle.Text = title ?? string.Empty;
             _description.Text = text ?? string.Empty;

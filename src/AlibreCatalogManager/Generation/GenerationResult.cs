@@ -4,14 +4,14 @@ namespace AlibreCatalogManager.Generation
 {
     public sealed class GenerationResult
     {
-        public string ProjectFolder { get; set; }
+        public string ProjectFolder { get; set; } = null!;
 
-        public string ProjectFile { get; set; }
+        public string ProjectFile { get; set; } = null!;
 
         /// <summary>Files written, relative to <see cref="ProjectFolder"/>.</summary>
         public List<string> Files { get; } = new List<string>();
 
         /// <summary>The solution the project was added to, or null.</summary>
-        public string SolutionUpdated { get; set; }
+        public string? SolutionUpdated { get; set; }
     }
 }

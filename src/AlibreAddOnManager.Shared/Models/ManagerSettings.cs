@@ -7,9 +7,9 @@ namespace AlibreAddOnManager.Models
     [DataContract]
     public class ManagerSettings
     {
-        [DataMember(Name = "catalogUrl", EmitDefaultValue = false)] public string CatalogUrl { get; set; }
+        [DataMember(Name = "catalogUrl", EmitDefaultValue = false)] public string? CatalogUrl { get; set; }
 
         /// <summary>Previously loaded catalog locations, most recent first. May be null after deserialization.</summary>
-        [DataMember(Name = "recentCatalogUrls", EmitDefaultValue = false)] public List<string> RecentCatalogUrls { get; set; }
+        [DataMember(Name = "recentCatalogUrls", EmitDefaultValue = false)] public List<string>? RecentCatalogUrls { get; set; }
     }
 }

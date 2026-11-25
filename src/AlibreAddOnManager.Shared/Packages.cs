@@ -29,7 +29,7 @@ namespace AlibreAddOnManager
         /// Checks a package against design doc §3.2. expectedId / expectedDllType
         /// come from the catalog manifest when installing from the directory.
         /// </summary>
-        public static PackageValidationResult Validate(string packagePath, string expectedId = null, string expectedDllType = null)
+        public static PackageValidationResult Validate(string packagePath, string? expectedId = null, string? expectedDllType = null)
         {
             var result = new PackageValidationResult();
             try
@@ -49,7 +49,7 @@ namespace AlibreAddOnManager
             return result;
         }
 
-        private static void ValidateArchive(ZipArchive zip, string expectedId, string expectedDllType, PackageValidationResult result)
+        private static void ValidateArchive(ZipArchive zip, string? expectedId, string? expectedDllType, PackageValidationResult result)
         {
             foreach (var entry in zip.Entries)
                 if (!IsSafeEntryName(entry.FullName))
@@ -70,6 +70,12 @@ namespace AlibreAddOnManager
             }
 
             var manifest = result.Manifest;
+            if (manifest == null)
+            {
+                result.Errors.Add("addon.json is not valid: it contains no manifest data.");
+                return;
+            }
+
             if (!Guid.TryParse(manifest.Id, out _))
                 result.Errors.Add("addon.json 'id' is not a GUID.");
             if (!ManagerPaths.IsValidFolderName(manifest.FolderName))
@@ -97,13 +103,13 @@ namespace AlibreAddOnManager
                 }
             }
 
-            if (result.Adc == null)
+            var adcFile = result.Adc;
+            if (adcFile == null)
             {
                 result.Errors.Add("No .adc at the package root has Identifier " + manifest.Id + " — Alibre would silently skip the add-on.");
                 return;
             }
 
-            var adcFile = result.Adc;
             if (adcFile.DllType == AddOnDllType.Unrecognised)
                 result.Errors.Add($"The .adc <DLL type=\"{adcFile.DllTypeText}\"> is not recognised.");
 
@@ -113,7 +119,7 @@ namespace AlibreAddOnManager
                 result.Errors.Add($"Manifest says dllType '{declared}' but the .adc declares a {AdcFile.DllTypeName(adcFile.DllType)} DLL.");
 
             var location = adcFile.DllLocation;
-            if (string.IsNullOrWhiteSpace(location))
+            if (location == null || string.IsNullOrWhiteSpace(location))
             {
                 result.Errors.Add("The .adc has no <DLL location>.");
                 return;
@@ -133,9 +139,10 @@ namespace AlibreAddOnManager
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(adcFile.IconLocation) &&
-                !zip.Entries.Any(e => string.Equals(e.FullName, adcFile.IconLocation.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)))
-                result.Warnings.Add($"Icon '{adcFile.IconLocation}' named in the .adc is not in the package.");
+            var iconLocation = adcFile.IconLocation;
+            if (iconLocation != null && !string.IsNullOrWhiteSpace(iconLocation) &&
+                !zip.Entries.Any(e => string.Equals(e.FullName, iconLocation.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+                result.Warnings.Add($"Icon '{iconLocation}' named in the .adc is not in the package.");
 
             byte[] image;
             using (var stream = dllEntry.Open())
@@ -145,9 +152,11 @@ namespace AlibreAddOnManager
                 image = memory.ToArray();
             }
 
+            PeInfo dll;
             try
             {
-                result.Dll = PeInspector.Inspect(image);
+                dll = PeInspector.Inspect(image);
+                result.Dll = dll;
             }
             catch (InvalidDataException e)
             {
@@ -155,12 +164,12 @@ namespace AlibreAddOnManager
                 return;
             }
 
-            if (adcFile.DllType != AddOnDllType.Unrecognised && !result.Dll.IsLoadableBy64BitHost(adcFile.DllType, out var reason))
+            if (adcFile.DllType != AddOnDllType.Unrecognised && !dll.IsLoadableBy64BitHost(adcFile.DllType, out var reason))
                 result.Errors.Add($"{location}: {reason}.");
 
             if (adcFile.DllType == AddOnDllType.Native)
             {
-                var missing = NativeExports.Where(n => !result.Dll.ExportNames.Contains(n)).ToList();
+                var missing = NativeExports.Where(n => !dll.ExportNames.Contains(n)).ToList();
                 if (missing.Count > 0)
                     result.Errors.Add($"{location} does not export {string.Join(", ", missing)} (undecorated).");
             }
@@ -170,9 +179,9 @@ namespace AlibreAddOnManager
         }
 
         /// <summary>Zip-slip protection: relative, no '..', no drive or UNC prefix.</summary>
-        public static bool IsSafeEntryName(string name)
+        public static bool IsSafeEntryName(string? name)
         {
-            if (string.IsNullOrEmpty(name)) return false;
+            if (name == null || name.Length == 0) return false;
             var n = name.Replace('\\', '/');
             if (n.StartsWith("/") || n.Contains(":")) return false;
             return n.Split('/').All(part => part != ".." && part != ".");
@@ -200,23 +209,24 @@ namespace AlibreAddOnManager
                         continue;
                     }
 
-                    Directory.CreateDirectory(Path.GetDirectoryName(destination));
+                    var destinationDirectory = Path.GetDirectoryName(destination);
+                    if (destinationDirectory != null) Directory.CreateDirectory(destinationDirectory);
                     entry.ExtractToFile(destination, true);
                 }
             }
         }
 
         /// <summary>Loose version compare: numeric fields first, then ordinal text.</summary>
-        public static int CompareVersions(string a, string b)
+        public static int CompareVersions(string? a, string? b)
         {
             if (Version.TryParse(Strip(a), out var va) && Version.TryParse(Strip(b), out var vb))
                 return va.CompareTo(vb);
             return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string Strip(string v)
+        private static string Strip(string? v)
         {
-            if (string.IsNullOrWhiteSpace(v)) return "0";
+            if (v == null || string.IsNullOrWhiteSpace(v)) return "0";
             v = v.Trim().TrimStart('v', 'V');
             var dash = v.IndexOfAny(new[] { '-', '+' });
             v = dash >= 0 ? v.Substring(0, dash) : v;

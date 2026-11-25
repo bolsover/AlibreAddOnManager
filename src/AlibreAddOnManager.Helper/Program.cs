@@ -43,6 +43,7 @@ namespace AlibreAddOnManager.Helper
             try
             {
                 var plan = Json.ReadFile<InstallPlan>(planPath);
+                if (plan == null) throw new InvalidDataException("Install plan contains no data.");
 
                 if (plan.RequiresAlibreClosed && IsAlibreRunning())
                 {

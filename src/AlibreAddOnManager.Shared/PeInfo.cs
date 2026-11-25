@@ -38,7 +38,7 @@ namespace AlibreAddOnManager
         /// Native: x64 with no CLR header. Managed: CLR header and either x64, or
         /// an IL-only AnyCPU image (reported as machine 0x14C) without 32BITREQUIRED.
         /// </summary>
-        public bool IsLoadableBy64BitHost(AddOnDllType type, out string reason)
+        public bool IsLoadableBy64BitHost(AddOnDllType type, out string? reason)
         {
             reason = null;
             if (type == AddOnDllType.Native)

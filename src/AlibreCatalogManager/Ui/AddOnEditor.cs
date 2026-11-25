@@ -28,7 +28,7 @@ namespace AlibreCatalogManager.Ui
         }
 
         private CatalogEntry Entry => _item.Entry;
-        private AddOnManifest Manifest => _item.Manifest;
+        private AddOnManifest? Manifest => _item.Manifest;
 
         [Category(Listing), Description("The .adc Identifier GUID — the add-on's identity everywhere.")]
         public string Id => _item.Id;
@@ -37,114 +37,161 @@ namespace AlibreCatalogManager.Ui
         public string Status => _item.Listed ? "Listed" : "Unlisted";
 
         [Category(Listing), Description("Display name, in both index.json and the manifest.")]
-        public string Name
+        public string? Name
         {
-            get => Entry?.Name ?? Manifest?.Name;
+            get => Entry.Name ?? Manifest?.Name ?? _item.Id;
             set
             {
                 value = Clean(value);
-                if (Entry != null) Entry.Name = value;
+                Entry.Name = value;
                 if (Manifest != null) Manifest.Name = value;
                 Changed(true, true);
             }
         }
 
         [Category(Listing), Description("Publisher name, in both index.json and the manifest.")]
-        public string Publisher
+        public string? Publisher
         {
-            get => Entry?.Publisher ?? Manifest?.Publisher?.Name;
+            get => Entry.Publisher ?? Manifest?.Publisher?.Name;
             set
             {
                 value = Clean(value);
-                if (Entry != null) Entry.Publisher = value;
-                if (Manifest != null)
-                {
-                    if (Manifest.Publisher == null) Manifest.Publisher = new Publisher();
-                    Manifest.Publisher.Name = value;
-                }
+                Entry.Publisher = value;
+                var publisher = EnsurePublisher();
+                if (publisher != null) publisher.Name = value;
 
                 Changed(true, true);
             }
         }
 
         [Category(Listing), Description("One line shown in the manager's Available list.")]
-        public string Summary
+        public string? Summary
         {
-            get => Entry?.Summary;
-            set { Entry.Summary = Clean(value); Changed(true, false); }
+            get => Entry.Summary;
+            set
+            {
+                Entry.Summary = Clean(value);
+                Changed(true, false);
+            }
         }
 
         [Category(Listing), Description("Comma-separated, e.g. modeling, utilities.")]
         public string Tags
         {
-            get => Join(Entry?.Tags);
-            set { Entry.Tags = Split(value); Changed(true, false); }
+            get => Join(Entry.Tags);
+            set
+            {
+                Entry.Tags = Split(value);
+                Changed(true, false);
+            }
         }
 
         [Category(Listing), Description("Comma-separated .adc workspace types: Always, Part, SheetMetal, Assembly, Drawing, Home.")]
         public string Workspaces
         {
-            get => Join(Entry?.Workspaces);
-            set { Entry.Workspaces = Split(value); Changed(true, false); }
+            get => Join(Entry.Workspaces);
+            set
+            {
+                Entry.Workspaces = Split(value);
+                Changed(true, false);
+            }
         }
 
         [Category(Listing), Description("Relative to index.json, e.g. addons/{GUID}/icon.png. Optional.")]
-        public string IconUrl
+        public string? IconUrl
         {
-            get => Entry?.IconUrl;
-            set { Entry.IconUrl = Clean(value); Changed(true, false); }
+            get => Entry.IconUrl;
+            set
+            {
+                Entry.IconUrl = Clean(value);
+                Changed(true, false);
+            }
         }
 
         [Category(Listing), Description("Read-only: always the newest version in the manifest.")]
-        public string LatestVersion => Entry?.LatestVersion;
+        public string? LatestVersion => Entry.LatestVersion;
 
         [Category(ManifestCategory), Description("Deploy folder under %ProgramData%\\Alibre AddOns. Changing it after release strands existing installs.")]
-        public string FolderName
+        public string? FolderName
         {
             get => Manifest?.FolderName;
-            set { Manifest.FolderName = Clean(value); Changed(false, true); }
+            set
+            {
+                if (Manifest != null) Manifest.FolderName = Clean(value);
+                Changed(false, true);
+            }
         }
 
         [Category(ManifestCategory)]
-        public string PublisherUrl
+        public string? PublisherUrl
         {
             get => Manifest?.Publisher?.Url;
-            set { EnsurePublisher().Url = Clean(value); Changed(false, true); }
+            set
+            {
+                var publisher = EnsurePublisher();
+                if (publisher != null) publisher.Url = Clean(value);
+                Changed(false, true);
+            }
         }
 
         [Category(ManifestCategory)]
-        public string PublisherEmail
+        public string? PublisherEmail
         {
             get => Manifest?.Publisher?.Email;
-            set { EnsurePublisher().Email = Clean(value); Changed(false, true); }
+            set
+            {
+                var publisher = EnsurePublisher();
+                if (publisher != null) publisher.Email = Clean(value);
+                Changed(false, true);
+            }
         }
 
         [Category(ManifestCategory), Description("SPDX identifier, e.g. MIT.")]
-        public string License
+        public string? License
         {
             get => Manifest?.License;
-            set { Manifest.License = Clean(value); Changed(false, true); }
+            set
+            {
+                if (Manifest != null) Manifest.License = Clean(value);
+                Changed(false, true);
+            }
         }
 
         [Category(ManifestCategory)]
-        public string Homepage
+        public string? Homepage
         {
             get => Manifest?.Homepage;
-            set { Manifest.Homepage = Clean(value); Changed(false, true); }
+            set
+            {
+                if (Manifest != null) Manifest.Homepage = Clean(value);
+                Changed(false, true);
+            }
         }
 
         [Category(ManifestCategory), Description("Longer description (markdown).")]
         [Multiline]
-        public string Description
+        public string? Description
         {
             get => Manifest?.Description;
-            set { Manifest.Description = string.IsNullOrWhiteSpace(value) ? null : value; Changed(false, true); }
+            set
+            {
+                if (Manifest != null) Manifest.Description = value == null || string.IsNullOrWhiteSpace(value) ? null : value;
+                Changed(false, true);
+            }
         }
 
-        private Publisher EnsurePublisher()
+        private Publisher? EnsurePublisher()
         {
-            if (Manifest.Publisher == null) Manifest.Publisher = new Publisher { Name = Entry?.Publisher };
-            return Manifest.Publisher;
+            var manifest = Manifest;
+            if (manifest == null) return null;
+            var publisher = manifest.Publisher;
+            if (publisher == null)
+            {
+                publisher = new Publisher { Name = Entry.Publisher };
+                manifest.Publisher = publisher;
+            }
+
+            return publisher;
         }
 
         private void Changed(bool index, bool manifest)
@@ -154,11 +201,11 @@ namespace AlibreCatalogManager.Ui
             _changed?.Invoke();
         }
 
-        internal static string Clean(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        internal static string? Clean(string? value) => value == null || string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        internal static string Join(List<string> values) => values == null ? string.Empty : string.Join(", ", values);
+        internal static string Join(List<string>? values) => values == null ? string.Empty : string.Join(", ", values);
 
-        internal static List<string> Split(string value)
+        internal static List<string>? Split(string? value)
         {
             var list = (value ?? string.Empty).Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).Distinct().ToList();
             return list.Count == 0 ? null : list;

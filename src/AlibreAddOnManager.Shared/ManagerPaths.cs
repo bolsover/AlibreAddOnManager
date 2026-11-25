@@ -59,22 +59,22 @@ namespace AlibreAddOnManager
         }
 
         /// <summary>A folder name must be a single, plain path segment.</summary>
-        public static bool IsValidFolderName(string name)
+        public static bool IsValidFolderName(string? name)
         {
-            if (string.IsNullOrWhiteSpace(name)) return false;
+            if (name == null || string.IsNullOrWhiteSpace(name)) return false;
             if (name == "." || name == ".." || name.StartsWith(".")) return false;
             if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return false;
             return name.Trim() == name;
         }
 
-        public static string NormalizeId(string id)
+        public static string? NormalizeId(string? id)
         {
             if (Guid.TryParse(id, out var guid))
                 return guid.ToString("B").ToUpperInvariant();
             return id?.Trim();
         }
 
-        public static bool SameId(string a, string b)
+        public static bool SameId(string? a, string? b)
         {
             return string.Equals(NormalizeId(a), NormalizeId(b), StringComparison.OrdinalIgnoreCase);
         }

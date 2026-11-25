@@ -26,7 +26,7 @@ namespace AlibreCatalogManager.Ui
         private readonly ObservableCollection<AddOnRow> _rows = new ObservableCollection<AddOnRow>();
         private readonly ObservableCollection<VersionRow> _versionRows = new ObservableCollection<VersionRow>();
         private readonly ObservableCollection<ProblemRow> _problemRows = new ObservableCollection<ProblemRow>();
-        private CatalogDocument _doc;
+        private CatalogDocument? _doc;
         private List<CatalogIssue> _issues = new List<CatalogIssue>();
         private bool _loaded;
 
@@ -43,22 +43,23 @@ namespace AlibreCatalogManager.Ui
             {
                 if (_loaded) return;
                 _loaded = true;
-                if (!string.IsNullOrEmpty(_settings.LastCatalog) && File.Exists(Path.Combine(_settings.LastCatalog, CatalogDocument.IndexFileName)))
-                    OpenCatalog(_settings.LastCatalog);
+                var lastCatalog = _settings.LastCatalog;
+                if (lastCatalog != null && lastCatalog.Length > 0 && File.Exists(Path.Combine(lastCatalog, CatalogDocument.IndexFileName)))
+                    OpenCatalog(lastCatalog);
             };
         }
 
         public bool HasUnsavedChanges => _doc != null && _doc.HasUnsavedChanges;
 
         /// <summary>The open catalog's folder, or null.</summary>
-        public string CatalogFolder => _doc?.RootFolder;
+        public string? CatalogFolder => _doc?.RootFolder;
 
         /// <summary>Raised whenever the open catalog, its contents or its saved state change.</summary>
-        public event EventHandler CatalogChanged;
+        public event EventHandler? CatalogChanged;
 
-        private CatalogItem SelectedItem => (AddOnList.SelectedItem as AddOnRow)?.Item;
+        private CatalogItem? SelectedItem => (AddOnList.SelectedItem as AddOnRow)?.Item;
 
-        private AddOnVersion SelectedVersion => (VersionList.SelectedItem as VersionRow)?.Version;
+        private AddOnVersion? SelectedVersion => (VersionList.SelectedItem as VersionRow)?.Version;
 
         #region Toolbar
 
@@ -76,7 +77,7 @@ namespace AlibreCatalogManager.Ui
         /// <summary>The "Add add-on" / "Add version" buttons drop their menu down below them.</summary>
         private void OnShowMenu(object sender, RoutedEventArgs e)
         {
-            var button = (Button) sender;
+            var button = (Button)sender;
             button.ContextMenu.PlacementTarget = button;
             button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             button.ContextMenu.IsOpen = true;
@@ -206,10 +207,10 @@ namespace AlibreCatalogManager.Ui
         #region Add
 
         /// <summary>Asks for a package (or a build folder to pack) and validates it. Null if cancelled or rejected.</summary>
-        private string ChoosePackage(bool fromFolder, string expectedId, out PackageValidationResult validation)
+        private string? ChoosePackage(bool fromFolder, string? expectedId, out PackageValidationResult? validation)
         {
             validation = null;
-            string path;
+            string? path;
             if (fromFolder)
             {
                 var folder = Dialogs.BrowseFolder(this, "Built add-on folder (the .adc, the DLL and, if it has one, addon.json), e.g. bin\\Release");
@@ -233,15 +234,15 @@ namespace AlibreCatalogManager.Ui
             else
             {
                 path = Dialogs.OpenFile(this, "Add-on package", "Alibre add-on package (*.alibreaddon)|*.alibreaddon");
-                if (path == null) return null;
             }
 
+            if (path == null) return null;
             validation = ValidatePackage(path, expectedId);
             return validation == null ? null : path;
         }
 
         /// <summary>Validates a package, showing errors and asking about warnings. Null if rejected.</summary>
-        private PackageValidationResult ValidatePackage(string path, string expectedId)
+        private PackageValidationResult? ValidatePackage(string path, string? expectedId)
         {
             var validation = Packages.Validate(path, expectedId);
             if (!validation.IsValid)
@@ -268,7 +269,7 @@ namespace AlibreCatalogManager.Ui
         /// <returns>True if the package was added and the catalog saved.</returns>
         public bool Publish(string packagePath, string releaseNotes)
         {
-            if (_doc == null) throw new InvalidOperationException("Open or create a catalog first.");
+            var doc = _doc ?? throw new InvalidOperationException("Open or create a catalog first.");
 
             string snapshot;
             try
@@ -286,22 +287,24 @@ namespace AlibreCatalogManager.Ui
 
             var validation = ValidatePackage(snapshot, null);
             if (validation == null) return false;
+            var packageManifest = validation.Manifest ?? throw new InvalidDataException("The validated package has no manifest.");
 
             CatalogItem item;
             AddOnVersion version;
             try
             {
-                item = _doc.Find(validation.Manifest.Id);
-                if (item != null)
+                var existing = doc.Find(packageManifest.Id);
+                if (existing != null)
                 {
-                    if (!item.IsEditable)
-                        throw new InvalidOperationException($"{item.Name} is in the catalog but its manifest cannot be edited: {item.ManifestError}");
-                    version = _doc.AddVersion(item, snapshot, validation);
+                    item = existing;
+                    if (!existing.IsEditable)
+                        throw new InvalidOperationException($"{existing.Name} is in the catalog but its manifest cannot be edited: {existing.ManifestError}");
+                    version = doc.AddVersion(existing, snapshot, validation);
                 }
                 else
                 {
-                    item = _doc.AddAddOn(snapshot, validation);
-                    version = item.LatestVersion;
+                    item = doc.AddAddOn(snapshot, validation);
+                    version = item.LatestVersion ?? throw new InvalidOperationException("The new add-on has no version.");
                 }
 
                 if (!string.IsNullOrWhiteSpace(releaseNotes)) version.ReleaseNotes = releaseNotes.Trim();
@@ -320,23 +323,25 @@ namespace AlibreCatalogManager.Ui
 
         private void AddAddOn(bool fromFolder)
         {
-            if (_doc == null) return;
+            var doc = _doc;
+            if (doc == null) return;
             var path = ChoosePackage(fromFolder, null, out var validation);
-            if (path == null) return;
+            if (path == null || validation == null) return;
+            var packageManifest = validation.Manifest ?? throw new InvalidDataException("The validated package has no manifest.");
 
             try
             {
-                var existing = _doc.Find(validation.Manifest.Id);
+                var existing = doc.Find(packageManifest.Id);
                 if (existing != null)
                 {
-                    if (Dialogs.Show(this, $"{existing.Name} is already in the catalog. Add this package as version {validation.Manifest.Version} of it?",
+                    if (Dialogs.Show(this, $"{existing.Name} is already in the catalog. Add this package as version {packageManifest.Version} of it?",
                             "Add-on already in catalog", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                    var version = _doc.AddVersion(existing, path, validation);
+                    var version = doc.AddVersion(existing, path, validation);
                     AfterChange(existing, version);
                     return;
                 }
 
-                var item = _doc.AddAddOn(path, validation);
+                var item = doc.AddAddOn(path, validation);
                 AfterChange(item, item.LatestVersion);
             }
             catch (Exception e)
@@ -348,13 +353,14 @@ namespace AlibreCatalogManager.Ui
         private void AddVersion(bool fromFolder)
         {
             var item = SelectedItem;
-            if (item == null || !item.IsEditable) return;
+            var doc = _doc;
+            if (item == null || doc == null || !item.IsEditable) return;
             var path = ChoosePackage(fromFolder, item.Id, out var validation);
-            if (path == null) return;
+            if (path == null || validation == null) return;
 
             try
             {
-                var version = _doc.AddVersion(item, path, validation);
+                var version = doc.AddVersion(item, path, validation);
                 AfterChange(item, version);
             }
             catch (Exception e)
@@ -370,11 +376,12 @@ namespace AlibreCatalogManager.Ui
         private void ToggleListed()
         {
             var item = SelectedItem;
-            if (item == null) return;
+            var doc = _doc;
+            if (item == null || doc == null) return;
             try
             {
-                if (item.Listed) _doc.Unlist(item);
-                else _doc.Relist(item);
+                if (item.Listed) doc.Unlist(item);
+                else doc.Relist(item);
                 AfterChange(item);
             }
             catch (Exception e)
@@ -386,16 +393,18 @@ namespace AlibreCatalogManager.Ui
         private void DeleteAddOn()
         {
             var item = SelectedItem;
-            if (item == null) return;
+            var doc = _doc;
+            if (item == null || doc == null) return;
 
-            var packages = item.Manifest != null ? _doc.DeletablePackages(item, item.Manifest.Versions.Where(v => v != null)) : new List<string>();
+            var manifest = item.Manifest;
+            var packages = manifest != null ? doc.DeletablePackages(item, manifest.Versions ?? new List<AddOnVersion>()) : new List<string>();
             var text = $"Delete {item.Name} from the catalog?\n\nIts index entry and manifest are deleted on save. " +
                        "Users who already installed it keep it, but can no longer update it from this catalog.";
             var deletePackages = false;
             if (packages.Count > 0)
             {
                 var answer = Dialogs.Show(this, text + $"\n\nAlso delete its {packages.Count} package file(s)?\n\n" +
-                                                string.Join("\n", packages.Select(p => "• " + _doc.RelativeUrl(p))) +
+                                                string.Join("\n", packages.Select(p => "• " + doc.RelativeUrl(p))) +
                                                 "\n\nYes = delete add-on and packages, No = keep the packages",
                     "Delete add-on", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
                 if (answer == MessageBoxResult.Cancel) return;
@@ -404,7 +413,7 @@ namespace AlibreCatalogManager.Ui
             else if (Dialogs.Show(this, text, "Delete add-on", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
                 return;
 
-            _doc.Delete(item, deletePackages);
+            doc.Delete(item, deletePackages);
             _issues.RemoveAll(i => i.Item == item);
             AfterChange(null);
         }
@@ -413,14 +422,15 @@ namespace AlibreCatalogManager.Ui
         {
             var item = SelectedItem;
             var version = SelectedVersion;
-            if (item == null || version == null) return;
+            var doc = _doc;
+            if (item == null || version == null || doc == null) return;
 
-            var packages = _doc.DeletablePackages(item, new[] { version });
+            var packages = doc.DeletablePackages(item, new[] { version });
             var text = $"Remove version {version.Version} of {item.Name}?";
             var deletePackage = false;
             if (packages.Count > 0)
             {
-                var answer = Dialogs.Show(this, text + $"\n\nAlso delete its package {_doc.RelativeUrl(packages[0])}?\n\nYes = remove and delete, No = keep the file",
+                var answer = Dialogs.Show(this, text + $"\n\nAlso delete its package {doc.RelativeUrl(packages[0])}?\n\nYes = remove and delete, No = keep the file",
                     "Remove version", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
                 if (answer == MessageBoxResult.Cancel) return;
                 deletePackage = answer == MessageBoxResult.Yes;
@@ -430,7 +440,7 @@ namespace AlibreCatalogManager.Ui
 
             try
             {
-                _doc.RemoveVersion(item, version, deletePackage);
+                doc.RemoveVersion(item, version, deletePackage);
                 AfterChange(item);
             }
             catch (Exception e)
@@ -443,13 +453,14 @@ namespace AlibreCatalogManager.Ui
         {
             var item = SelectedItem;
             var version = SelectedVersion;
-            if (item == null || version == null) return;
+            var doc = _doc;
+            if (item == null || version == null || doc == null) return;
             if (Dialogs.Show(this, $"Recompute sha256 and size of version {version.Version} from its package file?\n\n" +
                                    "Only do this if the package was rebuilt on purpose: users who already downloaded the old file will see a hash mismatch.",
                     "Rehash", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             try
             {
-                _doc.Rehash(item, version);
+                doc.Rehash(item, version);
                 AfterChange(item, version);
             }
             catch (Exception e)
@@ -464,8 +475,9 @@ namespace AlibreCatalogManager.Ui
 
         private void RunCheck(bool deep)
         {
-            if (_doc == null) return;
-            using (Dialogs.Busy()) _issues = CatalogValidator.Check(_doc, deep);
+            var doc = _doc;
+            if (doc == null) return;
+            using (Dialogs.Busy()) _issues = CatalogValidator.Check(doc, deep);
 
             RefreshProblems();
             RefreshList(SelectedItem);
@@ -487,7 +499,7 @@ namespace AlibreCatalogManager.Ui
         #region Refresh
 
         /// <summary>After any change: refresh everything and reselect.</summary>
-        private void AfterChange(CatalogItem select, AddOnVersion selectVersion = null)
+        private void AfterChange(CatalogItem? select, AddOnVersion? selectVersion = null)
         {
             RefreshList(select);
             if (selectVersion != null)
@@ -504,14 +516,15 @@ namespace AlibreCatalogManager.Ui
             UpdateUi();
         }
 
-        private void RefreshList(CatalogItem select)
+        private void RefreshList(CatalogItem? select)
         {
             _rows.Clear();
-            AddOnRow selected = null;
-            if (_doc != null)
+            AddOnRow? selected = null;
+            var doc = _doc;
+            if (doc != null)
             {
-                var withErrors = new HashSet<CatalogItem>(_issues.Where(i => i.Severity == CatalogIssueSeverity.Error && i.Item != null).Select(i => i.Item));
-                foreach (var item in _doc.Items.Where(i => i.Matches(SearchBox.Text)))
+                var withErrors = new HashSet<CatalogItem>(_issues.Where(i => i.Severity == CatalogIssueSeverity.Error && i.Item != null).Select(i => i.Item!));
+                foreach (var item in doc.Items.Where(i => i.Matches(SearchBox.Text)))
                 {
                     var row = new AddOnRow(item, withErrors.Contains(item) ? ErrorBrush : !item.Listed ? SystemColors.GrayTextBrush : null);
                     _rows.Add(row);
@@ -537,7 +550,8 @@ namespace AlibreCatalogManager.Ui
         private void ShowDetails()
         {
             var item = SelectedItem;
-            AddOnEditorView.SelectedObject = item == null ? null : new AddOnEditor(_doc, item, () => OnEdited(item));
+            var doc = _doc;
+            AddOnEditorView.SelectedObject = item == null || doc == null ? null : new AddOnEditor(doc, item, () => OnEdited(item));
             AddOnEditorView.IsEnabled = item != null && item.IsEditable;
 
             _versionRows.Clear();
@@ -553,8 +567,9 @@ namespace AlibreCatalogManager.Ui
         {
             var item = SelectedItem;
             var version = SelectedVersion;
-            VersionEditorView.SelectedObject = item != null && version != null && item.IsEditable
-                ? new VersionEditor(_doc, item, version, () => OnEdited(item))
+            var doc = _doc;
+            VersionEditorView.SelectedObject = item != null && version != null && item.IsEditable && doc != null
+                ? new VersionEditor(doc, item, version, () => OnEdited(item))
                 : null;
             UpdateUi();
         }
@@ -562,7 +577,9 @@ namespace AlibreCatalogManager.Ui
         /// <summary>A property edit: update the rows in place rather than rebuilding (keeps the editor's focus).</summary>
         private void OnEdited(CatalogItem item)
         {
-            _doc.SyncLatestVersion(item);
+            var doc = _doc;
+            if (doc == null) return;
+            doc.SyncLatestVersion(item);
             foreach (var row in _rows.Where(r => r.Item == item)) row.Refresh();
             foreach (var row in _versionRows) row.Refresh();
             UpdateUi();
@@ -570,12 +587,12 @@ namespace AlibreCatalogManager.Ui
 
         private void UpdateUi()
         {
-            var open = _doc != null;
+            var doc = _doc;
             var item = SelectedItem;
-            SaveButton.IsEnabled = open && _doc.HasUnsavedChanges;
-            ReloadButton.IsEnabled = open;
-            AddAddOnButton.IsEnabled = open;
-            CheckButton.IsEnabled = open;
+            SaveButton.IsEnabled = doc != null && doc.HasUnsavedChanges;
+            ReloadButton.IsEnabled = doc != null;
+            AddAddOnButton.IsEnabled = doc != null;
+            CheckButton.IsEnabled = doc != null;
             AddVersionButton.IsEnabled = item != null && item.IsEditable;
             ListToggleButton.IsEnabled = item != null;
             ListToggleButton.Content = item != null && !item.Listed ? "Re-list" : "Remove from listing";
@@ -587,15 +604,15 @@ namespace AlibreCatalogManager.Ui
             RehashButton.IsEnabled = RemoveVersionButton.IsEnabled;
             CatalogChanged?.Invoke(this, EventArgs.Empty);
 
-            if (!open)
+            if (doc == null)
             {
                 SetStatus("Open a catalog folder (index.json), or create a new one.");
                 return;
             }
 
-            var listed = _doc.Items.Count(i => i.Listed);
-            SetStatus($"{_doc.RootFolder} — {listed} listed, {_doc.Items.Count - listed} unlisted" +
-                      (_doc.HasUnsavedChanges ? " — unsaved changes" : string.Empty));
+            var listed = doc.Items.Count(i => i.Listed);
+            SetStatus($"{doc.RootFolder} — {listed} listed, {doc.Items.Count - listed} unlisted" +
+                      (doc.HasUnsavedChanges ? " — unsaved changes" : string.Empty));
         }
 
         private void SetStatus(string text) => StatusText.Text = text;
@@ -607,14 +624,14 @@ namespace AlibreCatalogManager.Ui
         /// <summary>Base for list rows: a foreground brush (null = default) and change notification.</summary>
         public abstract class Row : INotifyPropertyChanged
         {
-            protected Row(Brush foreground)
+            protected Row(Brush? foreground)
             {
                 Foreground = foreground ?? SystemColors.ControlTextBrush;
             }
 
             public Brush Foreground { get; }
 
-            public event PropertyChangedEventHandler PropertyChanged;
+            public event PropertyChangedEventHandler? PropertyChanged;
 
             /// <summary>Re-reads every displayed value.</summary>
             public void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
@@ -622,7 +639,7 @@ namespace AlibreCatalogManager.Ui
 
         public sealed class AddOnRow : Row
         {
-            public AddOnRow(CatalogItem item, Brush foreground) : base(foreground)
+            public AddOnRow(CatalogItem item, Brush? foreground) : base(foreground)
             {
                 Item = item;
             }
@@ -642,7 +659,7 @@ namespace AlibreCatalogManager.Ui
             }
 
             public AddOnVersion Version { get; }
-            public string Number => Version.Version;
+            public string? Number => Version.Version;
             public string Released => Version.Released ?? string.Empty;
 
             public string Builds =>
@@ -653,7 +670,7 @@ namespace AlibreCatalogManager.Ui
 
         public sealed class ProblemRow : Row
         {
-            public ProblemRow(CatalogIssue issue, Brush foreground) : base(foreground)
+            public ProblemRow(CatalogIssue issue, Brush? foreground) : base(foreground)
             {
                 Issue = issue;
             }

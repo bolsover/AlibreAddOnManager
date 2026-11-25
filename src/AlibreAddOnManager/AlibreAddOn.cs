@@ -16,8 +16,8 @@ namespace AlibreAddOnAssembly
     /// </summary>
     public static class AlibreAddOn
     {
-        private static IADRoot _root;
-        private static AddOnManagerAddOn _addOn;
+        private static IADRoot? _root;
+        private static AddOnManagerAddOn? _addOn;
 
         public static void AddOnLoad(IntPtr hwnd, IAutomationHook pAutomationHook, IntPtr unused)
         {
@@ -48,7 +48,7 @@ namespace AlibreAddOnAssembly
             _root = null;
         }
 
-        public static IAlibreAddOn GetAddOnInterface()
+        public static IAlibreAddOn? GetAddOnInterface()
         {
             return _addOn;
         }

@@ -55,7 +55,7 @@ namespace AlibreCatalogManager.Catalog
         /// A manifest for the .adc in <paramref name="folder"/>. <paramref name="version"/>
         /// and <paramref name="arch"/> override what the DLL says (or is missing).
         /// </summary>
-        public static PackageManifest FromAdc(string folder, string version = null, string arch = null)
+        public static PackageManifest FromAdc(string folder, string? version = null, string? arch = null)
         {
             var adc = FindAdc(folder);
             if (adc.DllType == AddOnDllType.Unrecognised)
@@ -79,7 +79,7 @@ namespace AlibreCatalogManager.Catalog
         }
 
         /// <summary>Builds addon.json from the .adc and writes it into <paramref name="folder"/>.</summary>
-        public static PackageManifest WriteFromAdc(string folder, string version = null, string arch = null)
+        public static PackageManifest WriteFromAdc(string folder, string? version = null, string? arch = null)
         {
             var manifest = FromAdc(folder, version, arch);
             File.WriteAllText(Path.Combine(folder, Packages.ManifestEntry), ToJson(manifest), new UTF8Encoding(false));
@@ -97,7 +97,7 @@ namespace AlibreCatalogManager.Catalog
         }
 
         /// <summary>major.minor.patch of the DLL's file version; null if it has none.</summary>
-        private static string VersionOf(string dll)
+        private static string? VersionOf(string? dll)
         {
             if (dll == null) return null;
             var info = FileVersionInfo.GetVersionInfo(dll);
@@ -105,7 +105,7 @@ namespace AlibreCatalogManager.Catalog
             return string.Format(CultureInfo.InvariantCulture, "{0}.{1}.{2}", info.FileMajorPart, info.FileMinorPart, info.FileBuildPart);
         }
 
-        private static string ArchOf(string dll)
+        private static string? ArchOf(string? dll)
         {
             if (dll == null) return null;
             try
@@ -141,8 +141,8 @@ namespace AlibreCatalogManager.Catalog
         }
 
         /// <summary>A JSON string literal, escaped by the framework serializer.</summary>
-        private static string Str(string value) => CatalogJson.Serialize(value ?? string.Empty, string.Empty).Trim();
+        private static string Str(string? value) => CatalogJson.Serialize(value ?? string.Empty, string.Empty).Trim();
 
-        private static string NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        private static string? NullIfEmpty(string? value) => value == null || string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

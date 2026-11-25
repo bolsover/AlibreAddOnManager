@@ -23,12 +23,15 @@ namespace AlibreCatalogManager.Catalog
             manifestCreated = !File.Exists(manifestPath);
             if (manifestCreated) AddOnManifestFactory.WriteFromAdc(sourceDir);
 
-            var manifest = Json.ReadFile<PackageManifest>(manifestPath);
-            if (!ManagerPaths.IsValidFolderName(manifest.FolderName) || string.IsNullOrWhiteSpace(manifest.Version))
+            var manifest = Json.ReadFile<PackageManifest>(manifestPath)
+                           ?? throw new InvalidDataException($"{Packages.ManifestEntry} is empty or invalid.");
+            var folderName = manifest.FolderName;
+            var version = manifest.Version;
+            if (!ManagerPaths.IsValidFolderName(folderName) || string.IsNullOrWhiteSpace(version))
                 throw new InvalidOperationException($"{Packages.ManifestEntry} needs a plain 'folderName' and a 'version'.");
 
             Directory.CreateDirectory(outDir);
-            var packagePath = Path.Combine(outDir, manifest.FolderName + "-" + manifest.Version + Packages.Extension);
+            var packagePath = Path.Combine(outDir, folderName + "-" + version + Packages.Extension);
             if (File.Exists(packagePath)) File.Delete(packagePath);
 
             using (var zip = ZipFile.Open(packagePath, ZipArchiveMode.Create))

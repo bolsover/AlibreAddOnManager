@@ -20,7 +20,7 @@ namespace AlibreCatalogManager.Catalog
         public const string AddOnsFolder = "addons";
         public const string PackagesFolder = "packages";
 
-        private CatalogIndex _index;
+        private CatalogIndex _index = null!;
 
         /// <summary>Package files to copy into the catalog on save: destination → source.</summary>
         private readonly Dictionary<string, string> _pendingCopies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -32,9 +32,9 @@ namespace AlibreCatalogManager.Catalog
         {
         }
 
-        public string RootFolder { get; private set; }
+        public string RootFolder { get; private set; } = null!;
 
-        public string IndexPath { get; private set; }
+        public string IndexPath { get; private set; } = null!;
 
         public List<CatalogItem> Items { get; } = new List<CatalogItem>();
 
@@ -72,11 +72,15 @@ namespace AlibreCatalogManager.Catalog
             if (Directory.Exists(path)) path = Path.Combine(path, IndexFileName);
             if (!File.Exists(path)) throw new FileNotFoundException("No " + IndexFileName + " found.", path);
 
+            var root = Path.GetDirectoryName(path)
+                       ?? throw new InvalidDataException("The catalog index has no containing folder.");
+            var index = Json.ReadFile<CatalogIndex>(path)
+                        ?? throw new InvalidDataException("The catalog index is empty or invalid.");
             var doc = new CatalogDocument
             {
                 IndexPath = path,
-                RootFolder = Path.GetDirectoryName(path),
-                _index = Json.ReadFile<CatalogIndex>(path)
+                RootFolder = root,
+                _index = index
             };
             if (doc._index.AddOns == null) doc._index.AddOns = new List<CatalogEntry>();
             doc.LoadItems();
@@ -86,9 +90,11 @@ namespace AlibreCatalogManager.Catalog
         private void LoadItems()
         {
             var seenManifests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in _index.AddOns.Where(e => e != null))
+            var entries = _index.AddOns ?? new List<CatalogEntry>();
+            _index.AddOns = entries;
+            foreach (var entry in entries.Where(e => e != null))
             {
-                var item = new CatalogItem { Id = ManagerPaths.NormalizeId(entry.Id), Entry = entry, Listed = true };
+                var item = new CatalogItem { Id = ManagerPaths.NormalizeId(entry.Id) ?? string.Empty, Entry = entry, Listed = true };
                 item.ManifestPath = ToLocalPath(entry.ManifestUrl);
                 if (item.ManifestPath == null)
                     item.ManifestError = string.IsNullOrWhiteSpace(entry.ManifestUrl) ? "No manifestUrl." : "Remote manifest — not editable here.";
@@ -114,7 +120,7 @@ namespace AlibreCatalogManager.Catalog
                     continue;
                 }
 
-                item.Id = ManagerPaths.NormalizeId(item.Manifest.Id);
+                item.Id = ManagerPaths.NormalizeId(item.Manifest.Id) ?? string.Empty;
                 item.Entry = NewEntry(item.Manifest, RelativeUrl(item.ManifestPath));
                 Items.Add(item);
             }
@@ -122,7 +128,14 @@ namespace AlibreCatalogManager.Catalog
 
         private static void LoadManifest(CatalogItem item)
         {
-            if (!File.Exists(item.ManifestPath))
+            var manifestPath = item.ManifestPath;
+            if (manifestPath == null)
+            {
+                item.ManifestError = "No manifest path.";
+                return;
+            }
+
+            if (!File.Exists(manifestPath))
             {
                 item.ManifestError = "Manifest file not found.";
                 return;
@@ -130,9 +143,11 @@ namespace AlibreCatalogManager.Catalog
 
             try
             {
-                item.Manifest = Json.ReadFile<AddOnManifest>(item.ManifestPath);
-                if (item.Manifest.Versions == null) item.Manifest.Versions = new List<AddOnVersion>();
-                if (item.Id == null) item.Id = ManagerPaths.NormalizeId(item.Manifest.Id);
+                var manifest = Json.ReadFile<AddOnManifest>(manifestPath)
+                               ?? throw new InvalidDataException("The manifest is empty or invalid.");
+                if (manifest.Versions == null) manifest.Versions = new List<AddOnVersion>();
+                item.Manifest = manifest;
+                if (string.IsNullOrEmpty(item.Id)) item.Id = ManagerPaths.NormalizeId(manifest.Id) ?? string.Empty;
             }
             catch (Exception e)
             {
@@ -148,7 +163,7 @@ namespace AlibreCatalogManager.Catalog
         /// Full local path of a catalog URL, resolved like the manager does — relative
         /// to index.json. Null for http(s) URLs or anything that is not a path.
         /// </summary>
-        public string ToLocalPath(string url)
+        public string? ToLocalPath(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
             try
@@ -171,13 +186,13 @@ namespace AlibreCatalogManager.Catalog
             return fullPath.Substring(root.Length).Replace('\\', '/');
         }
 
-        public bool IsInsideCatalog(string fullPath) => fullPath != null && ManagerPaths.IsSameOrUnder(fullPath, RootFolder);
+        public bool IsInsideCatalog(string? fullPath) => fullPath != null && ManagerPaths.IsSameOrUnder(fullPath, RootFolder);
 
         /// <summary>
         /// The package file to read for a version: the pending source if it has not
         /// been copied in yet, else the local catalog file. Null for remote packages.
         /// </summary>
-        public string PackageFileFor(AddOnVersion version)
+        public string? PackageFileFor(AddOnVersion? version)
         {
             var local = ToLocalPath(version?.PackageUrl);
             if (local == null) return null;
@@ -194,8 +209,13 @@ namespace AlibreCatalogManager.Catalog
         /// </summary>
         public CatalogItem AddAddOn(string packagePath, PackageValidationResult validation)
         {
-            var package = validation.Manifest;
-            var id = ManagerPaths.NormalizeId(package.Id);
+            var package = validation.Manifest
+                          ?? throw new InvalidOperationException("Package validation did not provide a manifest.");
+            var id = ManagerPaths.NormalizeId(package.Id)
+                     ?? throw new InvalidOperationException("The package manifest has no valid id.");
+            var folderName = package.FolderName;
+            if (string.IsNullOrWhiteSpace(folderName))
+                throw new InvalidOperationException("The package manifest has no folder name.");
             if (Find(id) != null) throw new InvalidOperationException($"{package.Name} ({id}) is already in the catalog; add a version instead.");
 
             var folderOwner = Items.FirstOrDefault(i => string.Equals(i.Manifest?.FolderName, package.FolderName, StringComparison.OrdinalIgnoreCase));
@@ -208,7 +228,7 @@ namespace AlibreCatalogManager.Catalog
                 SchemaVersion = 1,
                 Id = id,
                 Name = FirstNonEmpty(package.Name, adc?.DisplayName),
-                FolderName = package.FolderName,
+                FolderName = folderName,
                 Publisher = new Publisher { Name = FirstNonEmpty(package.Publisher, adc?.AuthorName), Url = NullIfEmpty(adc?.AuthorLink) },
                 Homepage = NullIfEmpty(adc?.AuthorLink),
                 Description = FirstNonEmpty(package.Description, adc?.Description)
@@ -224,7 +244,8 @@ namespace AlibreCatalogManager.Catalog
                 Listed = true,
                 ManifestDirty = true
             };
-            if (!string.IsNullOrWhiteSpace(adc?.Workspace)) item.Entry.Workspaces = new List<string> { adc.Workspace.Trim() };
+            var workspace = adc?.Workspace;
+            if (workspace != null && !string.IsNullOrWhiteSpace(workspace)) item.Entry.Workspaces = new List<string> { workspace.Trim() };
 
             _pendingDeletes.Remove(manifestPath);
             Items.Add(item);
@@ -237,13 +258,24 @@ namespace AlibreCatalogManager.Catalog
         public AddOnVersion AddVersion(CatalogItem item, string packagePath, PackageValidationResult validation)
         {
             RequireEditable(item);
-            var package = validation.Manifest;
-            if (!ManagerPaths.SameId(package.Id, item.Id))
+            var package = validation.Manifest
+                          ?? throw new InvalidOperationException("Package validation did not provide a manifest.");
+            var manifest = item.Manifest
+                           ?? throw new InvalidOperationException("The catalog manifest is not editable.");
+            var packageId = ManagerPaths.NormalizeId(package.Id)
+                            ?? throw new InvalidOperationException("The package manifest has no valid id.");
+            var packageVersion = package.Version;
+            if (string.IsNullOrWhiteSpace(packageVersion))
+                throw new InvalidOperationException("The package manifest has no version.");
+            var packageFolder = package.FolderName;
+            if (string.IsNullOrWhiteSpace(packageFolder))
+                throw new InvalidOperationException("The package manifest has no folder name.");
+            if (!ManagerPaths.SameId(packageId, item.Id))
                 throw new InvalidOperationException($"The package is {package.Id}, not {item.Id}.");
-            if (item.Manifest.Versions.Any(v => v != null && Packages.CompareVersions(v.Version, package.Version) == 0))
-                throw new InvalidOperationException($"Version {package.Version} is already in the catalog; remove it first to replace it.");
+            if ((manifest.Versions ?? new List<AddOnVersion>()).Any(v => v != null && Packages.CompareVersions(v.Version, packageVersion) == 0))
+                throw new InvalidOperationException($"Version {packageVersion} is already in the catalog; remove it first to replace it.");
 
-            var destination = Path.Combine(RootFolder, PackagesFolder, package.FolderName + "-" + package.Version + Packages.Extension);
+            var destination = Path.Combine(RootFolder, PackagesFolder, packageFolder + "-" + packageVersion + Packages.Extension);
             var source = Path.GetFullPath(packagePath);
             var sha = Packages.Sha256File(source);
 
@@ -259,7 +291,7 @@ namespace AlibreCatalogManager.Catalog
 
             var version = new AddOnVersion
             {
-                Version = package.Version,
+                Version = packageVersion,
                 Released = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 Kind = "integrated",
                 DllType = NullIfEmpty(package.DllType) ?? (validation.Adc != null ? AdcFile.DllTypeName(validation.Adc.DllType) : null),
@@ -270,7 +302,8 @@ namespace AlibreCatalogManager.Catalog
                 Sha256 = sha,
                 Size = new FileInfo(source).Length
             };
-            item.Manifest.Versions.Add(version);
+            manifest.Versions = manifest.Versions ?? new List<AddOnVersion>();
+            manifest.Versions.Add(version);
             item.ManifestDirty = true;
             SyncLatestVersion(item);
             return version;
@@ -333,13 +366,16 @@ namespace AlibreCatalogManager.Catalog
         {
             var removing = new HashSet<AddOnVersion>(versions);
             var stillUsed = new HashSet<string>(
-                Items.Where(i => i.Manifest != null)
-                    .SelectMany(i => i.Manifest.Versions.Where(v => v != null && !(i == item && removing.Contains(v))))
-                    .Select(v => ToLocalPath(v.PackageUrl)).Where(p => p != null),
+                Items.Select(i => i.Manifest)
+                    .OfType<AddOnManifest>()
+                    .SelectMany(m => m.Versions ?? new List<AddOnVersion>())
+                    .Where(v => v != null && !(removing.Contains(v)))
+                    .Select(v => ToLocalPath(v.PackageUrl)).OfType<string>(),
                 StringComparer.OrdinalIgnoreCase);
 
             return removing.Select(v => ToLocalPath(v.PackageUrl))
-                .Where(p => p != null && IsInsideCatalog(p) && !stillUsed.Contains(p) && (File.Exists(p) || _pendingCopies.ContainsKey(p)))
+                .OfType<string>()
+                .Where(p => IsInsideCatalog(p) && !stillUsed.Contains(p) && (File.Exists(p) || _pendingCopies.ContainsKey(p)))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -348,11 +384,14 @@ namespace AlibreCatalogManager.Catalog
         public void RemoveVersion(CatalogItem item, AddOnVersion version, bool deletePackage)
         {
             RequireEditable(item);
-            if (item.Manifest.Versions.Count(v => v != null) <= 1)
+            var manifest = item.Manifest
+                           ?? throw new InvalidOperationException("The catalog manifest is not editable.");
+            if ((manifest.Versions ?? new List<AddOnVersion>()).Count(v => v != null) <= 1)
                 throw new InvalidOperationException("This is the add-on's only version. Delete the add-on instead.");
 
             var packages = deletePackage ? DeletablePackages(item, new[] { version }) : new List<string>();
-            item.Manifest.Versions.Remove(version);
+            manifest.Versions = manifest.Versions ?? new List<AddOnVersion>();
+            manifest.Versions.Remove(version);
             item.ManifestDirty = true;
             foreach (var p in packages) DeleteOnSave(p);
             SyncLatestVersion(item);
@@ -365,18 +404,19 @@ namespace AlibreCatalogManager.Catalog
         public void Delete(CatalogItem item, bool deletePackages)
         {
             var packages = deletePackages && item.Manifest != null
-                ? DeletablePackages(item, item.Manifest.Versions.Where(v => v != null))
+                ? DeletablePackages(item, (item.Manifest.Versions ?? new List<AddOnVersion>()).Where(v => v != null))
                 : new List<string>();
 
             Items.Remove(item);
             if (item.Listed) IndexDirty = true;
 
             // Another entry may still point at the same manifest (a duplicate listing).
-            if (IsInsideCatalog(item.ManifestPath) && !Items.Any(i => string.Equals(i.ManifestPath, item.ManifestPath, StringComparison.OrdinalIgnoreCase)))
-                DeleteOnSave(item.ManifestPath);
+            var manifestPath = item.ManifestPath;
+            if (manifestPath != null && IsInsideCatalog(manifestPath) && !Items.Any(i => string.Equals(i.ManifestPath, manifestPath, StringComparison.OrdinalIgnoreCase)))
+                DeleteOnSave(manifestPath);
 
             var icon = ToLocalPath(item.Entry?.IconUrl);
-            if (IsInsideCatalog(icon) && !Items.Any(i => string.Equals(ToLocalPath(i.Entry?.IconUrl), icon, StringComparison.OrdinalIgnoreCase)))
+            if (icon != null && IsInsideCatalog(icon) && !Items.Any(i => string.Equals(ToLocalPath(i.Entry?.IconUrl), icon, StringComparison.OrdinalIgnoreCase)))
                 DeleteOnSave(icon);
 
             foreach (var p in packages) DeleteOnSave(p);
@@ -398,7 +438,13 @@ namespace AlibreCatalogManager.Catalog
         {
             var lines = new List<string>();
             if (IndexDirty) lines.Add("Write " + IndexFileName);
-            lines.AddRange(Items.Where(i => i.ManifestDirty).Select(i => "Write " + RelativeUrl(i.ManifestPath)));
+            foreach (var item in Items.Where(i => i.ManifestDirty))
+            {
+                var manifestPath = item.ManifestPath
+                                   ?? throw new InvalidOperationException("A dirty manifest has no local path.");
+                lines.Add("Write " + RelativeUrl(manifestPath));
+            }
+
             lines.AddRange(_pendingCopies.Keys.Select(p => "Copy package " + RelativeUrl(p)));
             lines.AddRange(_pendingDeletes.Select(p => "Delete " + RelativeUrl(p)));
             return lines;
@@ -413,14 +459,20 @@ namespace AlibreCatalogManager.Catalog
         {
             foreach (var copy in _pendingCopies.ToList())
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(copy.Key));
+                var destinationFolder = Path.GetDirectoryName(copy.Key)
+                                        ?? throw new InvalidOperationException("A package destination has no containing folder.");
+                Directory.CreateDirectory(destinationFolder);
                 File.Copy(copy.Value, copy.Key, true);
                 _pendingCopies.Remove(copy.Key);
             }
 
             foreach (var item in Items.Where(i => i.ManifestDirty))
             {
-                CatalogJson.WriteIfChanged(item.ManifestPath, item.Manifest);
+                var manifestPath = item.ManifestPath
+                                   ?? throw new InvalidOperationException("A dirty manifest has no local path.");
+                var manifest = item.Manifest
+                               ?? throw new InvalidOperationException("A dirty manifest has no content.");
+                CatalogJson.WriteIfChanged(manifestPath, manifest);
                 item.ManifestDirty = false;
             }
 
@@ -442,7 +494,7 @@ namespace AlibreCatalogManager.Catalog
         }
 
         /// <summary>Removes an emptied addons/{GUID}/ (icon) folder, never the catalog's own folders.</summary>
-        private void RemoveEmptyFolders(string folder)
+        private void RemoveEmptyFolders(string? folder)
         {
             var keep = new[] { RootFolder, Path.Combine(RootFolder, AddOnsFolder), Path.Combine(RootFolder, PackagesFolder) };
             while (folder != null && IsInsideCatalog(folder) && !keep.Any(k => string.Equals(k.TrimEnd('\\'), folder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) &&
@@ -457,21 +509,21 @@ namespace AlibreCatalogManager.Catalog
 
         #region Helpers
 
-        public CatalogItem Find(string id) => Items.FirstOrDefault(i => ManagerPaths.SameId(i.Id, id));
+        public CatalogItem? Find(string? id) => Items.FirstOrDefault(i => ManagerPaths.SameId(i.Id, id));
 
         private static CatalogEntry NewEntry(AddOnManifest manifest, string manifestUrl) => new CatalogEntry
         {
-            Id = ManagerPaths.NormalizeId(manifest.Id),
-            Name = manifest.Name,
+            Id = ManagerPaths.NormalizeId(manifest.Id) ?? string.Empty,
+            Name = manifest.Name ?? string.Empty,
             Publisher = manifest.Publisher?.Name,
             Summary = Summarise(manifest.Description),
             ManifestUrl = manifestUrl
         };
 
         /// <summary>The first sentence of a description, as index.json's one-line summary.</summary>
-        private static string Summarise(string description)
+        private static string? Summarise(string? description)
         {
-            if (string.IsNullOrWhiteSpace(description)) return null;
+            if (description == null || string.IsNullOrWhiteSpace(description)) return null;
             var text = description.Trim().Split('\n')[0].Trim();
             var stop = text.IndexOf(". ", StringComparison.Ordinal);
             if (stop > 0) text = text.Substring(0, stop);
@@ -485,9 +537,9 @@ namespace AlibreCatalogManager.Catalog
                 throw new InvalidOperationException($"{item.Name}: {item.ManifestError ?? "the manifest is not editable"}.");
         }
 
-        private static string FirstNonEmpty(params string[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+        private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 
-        private static string NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        private static string? NullIfEmpty(string? value) => value == null || string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         #endregion
     }
